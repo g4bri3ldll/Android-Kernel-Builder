@@ -171,6 +171,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: 💜 Coletar DTBs (Qualquer nome)
+        run: |
+          mkdir -p Ga_Output
+          find out/arch/arm64/boot/dts/ -name "*.dtb" -exec cp {} Ga_Output/ \;
+
+      - name: 💜 Criar Link para Download
+      uses: actions/upload-artifact@v4
+        with:
+          name: Build_MotoG22_Ga
+          path: Ga_Output/
+
       - name: "💜 Upload dtb"
         uses: actions/upload-artifact@v3
         with:
