@@ -171,6 +171,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: 💜 Catar apenas os DTBs
+        run: |
+          mkdir -p Ga_Output
+          find . -name "*.dtb" -exec cp {} Ga_Output/ \;
+
+      - name: 💜 Download dos DTBs
+        uses: actions/upload-artifact@v4
+        with:
+          name: DTBs_MotoG22_Ga
+          path: Ga_Output/
+
       - name: "💜 Upload dtb"
         uses: actions/upload-artifact@v3
         with:
