@@ -1,11 +1,12 @@
-[  {
+[
+  {
     "kernelSource": {
-      "name": "miku-KernelSU",
-      "repo": "https://github.com/PhamtomK12/kernel_xiaomi_odin",
-      "branch": "TDA",
-      "device": "odin"
+      "name": "p410ae",
+      "repo": "https://github.com/g4bri3ldll/kernel-mtk",
+      "branch": "android-12.0",
+      "device": "hawaiip"
     },
-    "withKernelSU": true,
+    "withKernelSU": false,
     "toolchains": [
       {
         "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",
@@ -20,12 +21,19 @@
     ],
     "params": {
       "ARCH": "arm64",
+      "SUBARCH": "arm64",
+      "defconfig": "p410ae_defconfig",
       "CROSS_COMPILE": "aarch64-linux-gnu-",
       "CROSS_COMPILE_ARM32": "arm-linux-gnueabi-",
-      "CROSS_COMPILE_COMPAT": "arm-linux-gnueabi-",
       "CLANG_TRIPLE": "aarch64-linux-gnu-",
-      "AR": "",
-      "CC": "clang"
+      "CC": "clang",
+      "LD": "ld.lld",
+      "AR": "llvm-ar",
+      "NM": "llvm-nm",
+      "OBJCOPY": "llvm-objcopy",
+      "OBJDUMP": "llvm-objdump",
+      "STRIP": "llvm-strip",
+      "JOURNEY_BUILD_SCRIPT": "yes"
     }
   }
 ]
