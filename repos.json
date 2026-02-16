@@ -1,9 +1,9 @@
 [  {
     "kernelSource": {
-      "name": "miku-KernelSU",
-      "repo": "https://github.com/PhamtomK12/kernel_xiaomi_odin",
-      "branch": "TDA",
-      "device": "odin"
+      "name": "hawaiip",
+      "repo": "https://github.com/MotorolaMobilityLLC/kernel-mtk",
+      "branch": "android-12-release-STB32",
+      "device": "p410ae"
     },
     "withKernelSU": true,
     "toolchains": [
