@@ -2,7 +2,7 @@
     "kernelSource": {
       "name": "hawaiip",
       "repo": "https://github.com/g4bri3ldll/kernel-mtk",
-      "branch": "android-12-release-STC32",
+      "branch": "android-12-release-STAS32.79-77-28-63-9",
       "device": "p410ae"
     },
     "withKernelSU": false,
