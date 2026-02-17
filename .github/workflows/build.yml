@@ -127,9 +127,9 @@ jobs:
           # 1. Remove qualquer resquício anterior
           rm -rf ./KernelSU ./drivers/kernelsu
 
-          # 2. Clona o repositório do KernelSU Next diretamente (branch next ou v1.1.1)
-          # Usamos a v1.1.1 para garantir que as correções que você quer estejam lá
-          git clone https://github.com/KernelSU-Next/KernelSU-Next -b v1.1.1 --depth=1
+          # 2. Clona o repositório do KernelSU Next diretamente (branch next ou v1.0.9)
+          # Usamos a v1.0.9 para garantir que as correções que você quer estejam lá
+          git clone https://github.com/KernelSU-Next/KernelSU-Next -b v1.0.9 --depth=1
 
           # 3. Cria o link simbólico na pasta drivers (exatamente como o script faz)
           ln -sf "$(pwd)/KernelSU-Next/kernel" "./drivers/kernelsu"
