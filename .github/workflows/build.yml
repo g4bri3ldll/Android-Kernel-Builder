@@ -120,10 +120,10 @@ jobs:
           fi
           echo "args=$args" >> $GITHUB_OUTPUT
 
-            - name: "😋 Update KernelSU Official"
+        - name: "😋 Update KernelSU Official"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
-        if: ${{ env.withKernelSU == 'true' }}
-        run: |
+          if: ${{ env.withKernelSU == 'true' }}
+          run: |
           if [ -d "./KernelSU" ]; then
             rm -rf "./KernelSU"
           fi
