@@ -124,21 +124,28 @@ jobs:
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
-          # Limpeza de instalações anteriores
+          # 1. Remove qualquer resquício anterior
           rm -rf ./KernelSU ./drivers/kernelsu
 
-          # Instalação do KernelSU Next v1.1.1 (Hotfix)
-          # O script de setup é baixado do repositório Next e a versão é travada em v1.1.1
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/main/kernel/setup.sh" | bash -s v1.1.1
+          # 2. Clona o repositório do KernelSU Next diretamente (branch next ou v1.1.1)
+          # Usamos a v1.1.1 para garantir que as correções que você quer estejam lá
+          git clone https://github.com/KernelSU-Next/KernelSU-Next -b v1.1.1 --depth=1
 
-          # Configurações obrigatórias no defconfig
+          # 3. Cria o link simbólico na pasta drivers (exatamente como o script faz)
+          ln -sf "$(pwd)/KernelSU-Next/kernel" "./drivers/kernelsu"
+
+          # 4. Modifica o Makefile e Kconfig manualmente (Garante que não dê erro 404)
+          grep -q "kernelsu" ./drivers/Makefile || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> ./drivers/Makefile
+          grep -q "drivers/kernelsu/Kconfig" ./drivers/Kconfig || sed -i "/endmenu/i\source \"drivers/kernelsu/Kconfig\"" ./drivers/Kconfig
+
+          # 5. Adiciona as flags no seu defconfig
           echo -e "\nCONFIG_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo -e "\nCONFIG_HAVE_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo -e "\nCONFIG_KPROBE_EVENTS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo -e "\nCONFIG_KALLSYMS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo -e "\nCONFIG_KALLSYMS_ALL=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-
-          cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo -e "\nCONFIG_KSU=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+      
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
