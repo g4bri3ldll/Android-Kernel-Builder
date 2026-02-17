@@ -133,13 +133,11 @@ jobs:
 
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v1.1.0/kernel/setup.sh" | bash -s v1.1.0
 
-          # --- HACKS DE COMPATIBILIDADE ---
-          # 1. Corrigir erro do seccomp (filter_count)
-          sed -i 's/atomic_set(&current->seccomp.filter_count, 0);/\/\/ atomic_set(\&current->seccomp.filter_count, 0);/g' ./drivers/kernelsu/core_hook.c
+          sed -i '/u32 current_sid(void);/d' ./drivers/kernelsu/selinux/selinux.h 2>/dev/null || true
           
-          # 2. Corrigir conflito do SELinux (current_sid) - ADICIONE ESTAS DUAS:
-          sed -i 's/u32 current_sid(void)/u32 ksu_current_sid(void)/g' ./drivers/kernelsu/selinux/selinux.c 2>/dev/null || true
-          sed -i 's/current_sid()/ksu_current_sid()/g' ./drivers/kernelsu/selinux/selinux.c 2>/dev/null || true
+          sed -i 's/u32 current_sid(void)/ \/\/ u32 current_sid(void)/g' ./drivers/kernelsu/selinux/selinux.c 2>/dev/null || true
+          
+          sed -i 's/atomic_set(&current->seccomp.filter_count, 0);/\/\/ atomic_set(\&current->seccomp.filter_count, 0);/g' ./drivers/kernelsu/core_hook.c
           
           echo -e "\nCONFIG_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo -e "\nCONFIG_HAVE_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
