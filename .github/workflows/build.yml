@@ -134,7 +134,7 @@ jobs:
           
           # 1. Bypass do erro de Non-GKI no Kbuild
           # Usamos o caminho que o ls -l confirmou
-          sed -i 's/$(error TP hooks are incompatible with Non-GKI\/GKI 1.0 kernels in this configuration..)/# TP hooks bypass/' drivers/kernelsu/Kbuild
+          sed -i '/TP hooks are incompatible/s/^/# /' drivers/kernelsu/Kbuild
 
           # 2. Fix do erro 'filter_count' (seccomp) no app_profile.c
           # O grep mostrou que a linha está aqui no ReSukiSU
