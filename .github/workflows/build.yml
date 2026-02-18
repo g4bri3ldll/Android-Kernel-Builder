@@ -120,29 +120,28 @@ jobs:
           fi
           echo "args=$args" >> $GITHUB_OUTPUT
 
-      - name: "😋 Update KernelSU"
+      - name: "😋 Update KernelSU (ReSukiSU)"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
-          if [ -d "./KernelSU" ]; then
-            rm -rf "./KernelSU"
-          fi
-          if [ -d "./drivers/kernelsu" ]; then
-            rm -rf "./drivers/kernelsu"
-          fi
+          # Limpeza de segurança
+          rm -rf KernelSU drivers/kernelsu
 
-          # Clone do ReSukiSU
+          # Setup do ReSukiSU
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           
-          # --- CORREÇÕES CIRÚRGICAS (SED) ---
+          # --- CORREÇÕES ESPECÍFICAS PARA RE-SUKISU ---
           
           # 1. Bypass do erro de Non-GKI no Kbuild
+          # Usamos o caminho que o ls -l confirmou
           sed -i 's/$(error TP hooks are incompatible with Non-GKI\/GKI 1.0 kernels in this configuration..)/# TP hooks bypass/' drivers/kernelsu/Kbuild
 
-          # 2. Fix do erro 'filter_count' (seccomp) NO ARQUIVO REAL
-          # Agora apontando para a pasta KernelSU que o script criou na raiz
-          sed -i 's/atomic_set(&current->seccomp.filter_count, 0);/\/\/ atomic_set(\&current->seccomp.filter_count, 0);/g' KernelSU/kernel/core_hook.c
-          
+          # 2. Fix do erro 'filter_count' (seccomp) no app_profile.c
+          # O grep mostrou que a linha está aqui no ReSukiSU
+          if [ -f "drivers/kernelsu/app_profile.c" ]; then
+            sed -i 's/atomic_set(&tsk->seccomp.filter_count, 0);/\/\/ atomic_set(\&tsk->seccomp.filter_count, 0);/g' drivers/kernelsu/app_profile.c
+          fi
+
           # --- CONFIGURAÇÕES DO DEFCONFIG ---
           echo -e "\nCONFIG_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_HAVE_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
