@@ -141,6 +141,14 @@ jobs:
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
             sed -i 's/atomic_set(&tsk->seccomp.filter_count, 0);/\/\/ atomic_set(\&tsk->seccomp.filter_count, 0);/g' drivers/kernelsu/app_profile.c
           fi
+          # 1. Traduz strncpy_from_user_nofault para strncpy_from_user
+          grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
+
+          # 2. Traduz copy_from_user_nofault para probe_kernel_read (ou copy_from_user conforme o caso)
+          grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
+
+          # 3. Traduz copy_to_user_nofault para copy_to_user
+          grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
 
           # --- CONFIGURAÇÕES DO DEFCONFIG ---
           echo -e "\nCONFIG_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
