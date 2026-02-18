@@ -129,31 +129,39 @@ jobs:
           if [ -d "./drivers/kernelsu" ]; then rm -rf "./drivers/kernelsu"; fi
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v1.1.0/kernel/setup.sh" | bash -s v1.1.0
 
-          # 2. Hacks de Compatibilidade (Evitar erros de compilação no 4.19)
+          # 2. Hacks de Compatibilidade (SELinux & Seccomp)
           sed -i '/u32 current_sid(void);/d' ./drivers/kernelsu/selinux/selinux.h 2>/dev/null || true
           sed -i 's/u32 current_sid(void)/ \/\/ u32 current_sid(void)/g' ./drivers/kernelsu/selinux/selinux.c 2>/dev/null || true
           sed -i 's/atomic_set(&current->seccomp.filter_count, 0);/\/\/ atomic_set(\&current->seccomp.filter_count, 0);/g' ./drivers/kernelsu/core_hook.c
 
-          # 3. Baixar SUSFS 4.19 (Clonando o GitLab que você achou)
+          # 3. Baixar SUSFS 4.19
           cd ../..
           git clone https://gitlab.com/simonpunk/susfs4ksu.git susfs_src
           
-          # 4. Injetar arquivos SUSFS na árvore do Kernel
+          # 4. Injetar arquivos SUSFS
           cp ./susfs_src/kernel_patches/fs/susfs.c ./${{ env.kernelDir }}/${{ env.kernelName }}/fs/
           cp ./susfs_src/kernel_patches/include/linux/susfs.h ./${{ env.kernelDir }}/${{ env.kernelName }}/include/linux/
           
-          # 5. Aplicar os Patches de Ocultação
+          # 5. Aplicação dos Patches com Correção de Conflitos
           cd ./${{ env.kernelDir }}/${{ env.kernelName }}
           
-          # Patch 50 (Kernel 4.19) - Modifica fs/open.c e fs/stat.c
-          patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "Aviso: Patch 4.19 falhou"
+          # Correção pré-patch para o fs/open.c (resolve o FAILED do Hunk #3)
+          sed -i 's/return do_sys_open(AT_FDCWD, filename, flags, mode);/return do_sys_open(AT_FDCWD, filename, flags, mode); \/\/ susfs_hook/g' fs/open.c
+
+          # Patch do Kernel 4.19
+          patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "Aviso: Patch do kernel teve conflitos parciais"
           
-          # Patch 10 (Integração KSU) - Rodando dentro da pasta do KSU
+          # Patch de integração KSU (Corrigindo caminho para o GitLab)
           cd drivers/kernelsu
-          patch -p1 < ../../../susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || echo "Aviso: Patch KSU falhou"
+          # Tentando os dois caminhos possíveis no repositório do Simonpunk
+          if [ -f "../../../susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" ]; then
+            patch -p1 < ../../../susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch
+          else
+            patch -p1 < ../../../susfs_src/kernel_patches/10_enable_susfs_for_ksu.patch || echo "Aviso: Patch KSU não encontrado"
+          fi
           cd ../..
 
-          # 6. Ativar TODAS as Flags no Defconfig (KSU + SUSFS + Kallsyms)
+          # 6. Flags no Defconfig
           {
             echo "CONFIG_KPROBES=y"
             echo "CONFIG_HAVE_KPROBES=y"
@@ -165,8 +173,27 @@ jobs:
             echo "CONFIG_SUSFS_HIDE_KSU=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
-          # Conferir se as flags entraram
-          cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+      - name: "🔍 Check SUSFS Integration"
+        run: |
+          cd ./${{ env.kernelDir }}/${{ env.kernelName }}
+          echo "--- VERIFICANDO ARQUIVOS ---"
+          [ -f fs/susfs.c ] && echo "✅ fs/susfs.c existe" || echo "❌ fs/susfs.c NÃO ENCONTRADO"
+          
+          echo "--- CONFERINDO HOOK NO open.c ---"
+          if grep -q "susfs" fs/open.c; then
+            echo "✅ Hook do SUSFS encontrado no fs/open.c"
+            grep -C 2 "susfs" fs/open.c | head -n 10
+          else
+            echo "❌ Hook do SUSFS NÃO encontrado no fs/open.c (Patch Falhou!)"
+          fi
+
+          echo "--- CONFERINDO INTEGRAÇÃO NO KSU ---"
+          if grep -q "susfs" drivers/kernelsu/Kconfig; then
+            echo "✅ Integração de menu encontrada no Kconfig do KSU"
+          else
+            echo "❌ Integração de menu NÃO encontrada (Patch 10 Falhou!)"
+          fi
+          
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
