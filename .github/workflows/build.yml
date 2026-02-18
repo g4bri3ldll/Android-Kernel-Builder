@@ -122,29 +122,37 @@ jobs:
           # --- CORREÇÕES ESPECÍFICAS PARA RE-SUKISU ---
           
           # 1. Bypass do erro de Non-GKI no Kbuild
-          # Usamos o caminho que o ls -l confirmou
           sed -i '/TP hooks are incompatible/s/^/# /' drivers/kernelsu/Kbuild
 
           # 2. Fix do erro 'filter_count' (seccomp) no app_profile.c
-          # O grep mostrou que a linha está aqui no ReSukiSU
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
             sed -i 's/atomic_set(&tsk->seccomp.filter_count, 0);/\/\/ atomic_set(\&tsk->seccomp.filter_count, 0);/g' drivers/kernelsu/app_profile.c
           fi
-          # 1. Traduz strncpy_from_user_nofault para strncpy_from_user
+
+          # 3. Traduções de funções de memória para Kernel 4.19
           grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
-
-          # 2. Traduz copy_from_user_nofault para probe_kernel_read (ou copy_from_user conforme o caso)
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
-
-          # 3. Traduz copy_to_user_nofault para copy_to_user
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
 
-          # --- CONFIGURAÇÕES DO DEFCONFIG ---
-          echo -e "\nCONFIG_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_HAVE_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KPROBE_EVENTS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KALLSYMS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KALLSYMS_ALL=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          # --- CONFIGURAÇÕES OBRIGATÓRIAS (DEFCONFIG) ---
+          
+          # Injeção de Kprobes e Performance
+          {
+            echo "CONFIG_KPROBES=y"
+            echo "CONFIG_HAVE_KPROBES=y"
+            echo "CONFIG_KPROBE_EVENTS=y"
+            echo "CONFIG_KALLSYMS=y"
+            echo "CONFIG_KALLSYMS_ALL=y"
+            echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y"
+            echo "CONFIG_HZ_300=y"
+            echo "CONFIG_IOSCHED_NOOP=y"
+            echo "CONFIG_DEFAULT_NOOP=y"
+          } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+
+          # Remove travas de otimização e Hz antigos se existirem
+          sed -i 's/CONFIG_CC_OPTIMIZE_FOR_SIZE=y/CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          sed -i 's/CONFIG_HZ_100=y/CONFIG_HZ_300=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+
           cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
       - name: "👍 Make defconfig"
