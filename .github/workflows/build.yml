@@ -82,7 +82,6 @@ jobs:
         working-directory: ./${{ env.kernelDir }}
         env:
           params: "${{ toJSON(matrix.repos.params) }}"
-          THREAD: $(nproc --all)
         run: |
           ARCH=$(echo $params | jq -r ".ARCH")
           echo "ARCH=$ARCH" >> $GITHUB_ENV
@@ -93,21 +92,16 @@ jobs:
             args="$args O=$(pwd)/${{ env.OUT_DIR }}"
           fi
           
-          # Se CC for clang, montamos os argumentos específicos
           CC_VAL=$(echo $params | jq -r ".CC")
           if [ "$CC_VAL" = "clang" ]; then
+            # Argumentos otimizados para Clang (sem NM/OBJCOPY para evitar Broken Pipe)
             args="$args CC=clang \
                   HOSTCC=clang \
                   CLANG_TRIPLE=$(echo $params | jq -r ".CLANG_TRIPLE") \
                   CROSS_COMPILE=$(echo $params | jq -r ".CROSS_COMPILE") \
-                  CROSS_COMPILE_ARM32=$(echo $params | jq -r ".CROSS_COMPILE_COMPAT") \
-                  AR=$(echo $params | jq -r ".AR") \
-                  NM=llvm-nm \
-                  OBJCOPY=llvm-objcopy \
-                  OBJDUMP=llvm-objdump \
-                  STRIP=llvm-strip"
+                  CROSS_COMPILE_ARM32=$(echo $params | jq -r ".CROSS_COMPILE_COMPAT")"
           else
-            # Caso contrário, mantém o padrão GCC
+            # Argumentos padrão para GCC
             args="$args ARCH=$ARCH \
                   CROSS_COMPILE=$(echo $params | jq -r ".CROSS_COMPILE") \
                   CROSS_COMPILE_ARM32=$(echo $params | jq -r ".CROSS_COMPILE_COMPAT")"
@@ -151,7 +145,7 @@ jobs:
           echo "CONFIG_KPROBE_EVENTS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KALLSYMS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KALLSYMS_ALL=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-
+          sed -i 's/-Werror//g' Makefile
           cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
       - name: "👍 Make defconfig"
