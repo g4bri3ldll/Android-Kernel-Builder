@@ -125,8 +125,8 @@ jobs:
         if: ${{ env.withKernelSU == 'true' }}
         run: |
           # 1. Instalar KernelSU Next v1.1.0
-          if [ -d "./KernelSU" ]; then rm -rf "./KernelSU"; fi
-          if [ -d "./drivers/kernelsu" ]; then rm -rf "./drivers/kernelsu"; fi
+          [ -d "./KernelSU" ] && rm -rf "./KernelSU"
+          [ -d "./drivers/kernelsu" ] && rm -rf "./drivers/kernelsu"
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v1.1.0/kernel/setup.sh" | bash -s v1.1.0
 
           # 2. Hacks de Compatibilidade (SELinux & Seccomp)
@@ -134,7 +134,7 @@ jobs:
           sed -i 's/u32 current_sid(void)/ \/\/ u32 current_sid(void)/g' ./drivers/kernelsu/selinux/selinux.c 2>/dev/null || true
           sed -i 's/atomic_set(&current->seccomp.filter_count, 0);/\/\/ atomic_set(\&current->seccomp.filter_count, 0);/g' ./drivers/kernelsu/core_hook.c
 
-          # 3. Baixar SUSFS 4.19
+          # 3. Baixar SUSFS 4.19 (GitLab Simonpunk)
           cd ../..
           git clone https://gitlab.com/simonpunk/susfs4ksu.git susfs_src
           
@@ -142,37 +142,28 @@ jobs:
           cp ./susfs_src/kernel_patches/fs/susfs.c ./${{ env.kernelDir }}/${{ env.kernelName }}/fs/
           cp ./susfs_src/kernel_patches/include/linux/susfs.h ./${{ env.kernelDir }}/${{ env.kernelName }}/include/linux/
           
-          # 5. Aplicação dos Patches com Correção de Conflitos
+          # 5. Aplicação dos Patches
           cd ./${{ env.kernelDir }}/${{ env.kernelName }}
+          sed -i 's/return do_sys_open(AT_FDCWD, filename, flags, mode);/return do_sys_open(AT_FDCWD, filename, flags, mode);/g' fs/open.c
+          patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "⚠️ Aviso: Conflitos ignorados"
           
-          # Correção pré-patch para o fs/open.c (resolve o FAILED do Hunk #3)
-          sed -i 's/return do_sys_open(AT_FDCWD, filename, flags, mode);/return do_sys_open(AT_FDCWD, filename, flags, mode); \/\/ susfs_hook/g' fs/open.c
-
-          # Patch do Kernel 4.19
-          patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "Aviso: Patch do kernel teve conflitos parciais"
+          # 6. Integração Manual (Corrigido para evitar erro de indentação)
+          printf 'config KSU_SUSFS\n\tbool "KernelSU SUSFS Support"\n\tdefault y\n\thelp\n\t  Enable support for SUSFS in KernelSU.\n' >> drivers/kernelsu/Kconfig
           
-          # Patch de integração KSU (Corrigindo caminho para o GitLab)
-          cd drivers/kernelsu
-          # Tentando os dois caminhos possíveis no repositório do Simonpunk
-          if [ -f "../../../susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" ]; then
-            patch -p1 < ../../../susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch
-          else
-            patch -p1 < ../../../susfs_src/kernel_patches/10_enable_susfs_for_ksu.patch || echo "Aviso: Patch KSU não encontrado"
-          fi
-          cd ../..
+          grep -q "susfs.h" drivers/kernelsu/ksu.c || sed -i '1i #include <linux/susfs.h>' drivers/kernelsu/ksu.c
 
-          # 6. Flags no Defconfig
-          {
-            echo "CONFIG_KPROBES=y"
-            echo "CONFIG_HAVE_KPROBES=y"
-            echo "CONFIG_KPROBE_EVENTS=y"
-            echo "CONFIG_KALLSYMS=y"
-            echo "CONFIG_KALLSYMS_ALL=y"
-            echo "CONFIG_KSU_SUSFS=y"
-            echo "CONFIG_SUSFS_SMART_HIDE=y"
-            echo "CONFIG_SUSFS_HIDE_KSU=y"
-          } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-
+          # 7. Inserção das Flags no Defconfig
+          cat <<EOF >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+CONFIG_KPROBES=y
+CONFIG_HAVE_KPROBES=y
+CONFIG_KPROBE_EVENTS=y
+CONFIG_KALLSYMS=y
+CONFIG_KALLSYMS_ALL=y
+CONFIG_KSU_SUSFS=y
+CONFIG_SUSFS_SMART_HIDE=y
+CONFIG_SUSFS_HIDE_KSU=y
+EOF
+          
       - name: "🔍 Check SUSFS Integration"
         run: |
           cd ./${{ env.kernelDir }}/${{ env.kernelName }}
