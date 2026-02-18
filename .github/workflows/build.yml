@@ -120,63 +120,25 @@ jobs:
           fi
           echo "args=$args" >> $GITHUB_OUTPUT
 
-      - name: "😋 Update KernelSU Next & SUSFS 4.19"
+      - name: "😋 Update KernelSU"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
-          # 1. Instalar KernelSU Next v1.1.0
-          [ -d "./drivers/kernelsu" ] && rm -rf "./drivers/kernelsu"
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v1.1.0/kernel/setup.sh" | bash -s v1.1.0
-
-          # 2. Hacks de Compatibilidade (SELinux & Seccomp)
-          sed -i '/u32 current_sid(void);/d' ./drivers/kernelsu/selinux/selinux.h 2>/dev/null || true
-          sed -i 's/u32 current_sid(void)/ \/\/ u32 current_sid(void)/g' ./drivers/kernelsu/selinux/selinux.c 2>/dev/null || true
-          sed -i 's/atomic_set(&current->seccomp.filter_count, 0);/\/\/ atomic_set(\&current->seccomp.filter_count, 0);/g' ./drivers/kernelsu/core_hook.c
-
-          # 3. Baixar SUSFS 4.19
-          cd ../..
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git susfs_src
-          
-          # 4. Injetar arquivos SUSFS
-          cp ./susfs_src/kernel_patches/fs/susfs.c ./${{ env.kernelDir }}/${{ env.kernelName }}/fs/
-          cp ./susfs_src/kernel_patches/include/linux/susfs.h ./${{ env.kernelDir }}/${{ env.kernelName }}/include/linux/
-          
-          # 5. Aplicação dos Patches e Integração Manual
-          cd ./${{ env.kernelDir }}/${{ env.kernelName }}
-          sed -i 's/return do_sys_open(AT_FDCWD, filename, flags, mode);/return do_sys_open(AT_FDCWD, filename, flags, mode);/g' fs/open.c
-          patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "⚠️ Patch Kernel ignorado"
-          
-          # 6. Integração Manual (Injeção via SED - Mais segura)
-          # Injeta o menu do SUSFS logo após a primeira linha do Kconfig do KSU
-          sed -i '1a config KSU_SUSFS\n\tbool "KernelSU SUSFS Support"\n\tdefault y\n\thelp\n\t  Enable support for SUSFS in KernelSU.\n' drivers/kernelsu/Kconfig
-          
-          # Injeta o include necessário no ksu.c
-          sed -i '1i #include <linux/mm.h>\n#include <linux/susfs.h>' drivers/kernelsu/ksu.c
-          
-          # 7. Flags no Defconfig
-          printf "CONFIG_KPROBES=y\nCONFIG_HAVE_KPROBES=y\nCONFIG_KPROBE_EVENTS=y\nCONFIG_KALLSYMS=y\nCONFIG_KALLSYMS_ALL=y\nCONFIG_KSU_SUSFS=y\nCONFIG_SUSFS_SMART_HIDE=y\nCONFIG_SUSFS_HIDE_KSU=y\n" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-      
-      - name: "🔍 Check SUSFS Integration"
-        run: |
-          cd ./${{ env.kernelDir }}/${{ env.kernelName }}
-          echo "--- VERIFICANDO ARQUIVOS ---"
-          [ -f fs/susfs.c ] && echo "✅ fs/susfs.c existe" || echo "❌ fs/susfs.c NÃO ENCONTRADO"
-          
-          echo "--- CONFERINDO HOOK NO open.c ---"
-          if grep -q "susfs" fs/open.c; then
-            echo "✅ Hook do SUSFS encontrado no fs/open.c"
-            grep -C 2 "susfs" fs/open.c | head -n 10
-          else
-            echo "❌ Hook do SUSFS NÃO encontrado no fs/open.c (Patch Falhou!)"
+          if [ -d "./KernelSU" ]; then
+            rm -rf "./KernelSU"
+          fi
+          if [ -d "./drivers/kernelsu" ]; then
+            rm -rf "./drivers/kernelsu"
           fi
 
-          echo "--- CONFERINDO INTEGRAÇÃO NO KSU ---"
-          if grep -q "susfs" drivers/kernelsu/Kconfig; then
-            echo "✅ Integração de menu encontrada no Kconfig do KSU"
-          else
-            echo "❌ Integração de menu NÃO encontrada (Patch 10 Falhou!)"
-          fi
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
+
+          echo -e "\nCONFIG_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo -e "\nCONFIG_HAVE_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo -e "\nCONFIG_KPROBE_EVENTS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           
+          cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
