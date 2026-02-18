@@ -147,18 +147,19 @@ jobs:
           sed -i 's/return do_sys_open(AT_FDCWD, filename, flags, mode);/return do_sys_open(AT_FDCWD, filename, flags, mode);/g' fs/open.c
           patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "⚠️ Aviso: Conflitos ignorados"
           
-          # 6. Integração Manual (Injeção via SED para evitar erro de caractere)
+          # 6. Integração Manual (Reescrita Segura do Kconfig)
           cd drivers/kernelsu
-          # Cria o bloco de config no topo do arquivo Kconfig
-          sed -i '1i config KSU_SUSFS\n\tbool "KernelSU SUSFS Support"\n\tdefault y\n\thelp\n\t  Enable support for SUSFS in KernelSU.\n' Kconfig
+          mv Kconfig Kconfig.old
+          printf 'config KSU_SUSFS\n\tbool "KernelSU SUSFS Support"\n\tdefault y\n\thelp\n\t  Enable support for SUSFS in KernelSU.\n\n' > Kconfig
+          cat Kconfig.old >> Kconfig
           
-          # Adiciona o include no topo do ksu.c
+          # Adiciona o include no ksu.c
           grep -q "susfs.h" ksu.c || sed -i '1i #include <linux/susfs.h>' ksu.c
           cd ../..
-
-          # 7. Inserção das Flags no Defconfig (Usando printf limpo para evitar char estranho)
-          printf "CONFIG_KPROBES=y\nCONFIG_HAVE_KPROBES=y\nCONFIG_KPROBE_EVENTS=y\nCONFIG_KALLSYMS=y\nCONFIG_KALLSYMS_ALL=y\nCONFIG_KSU_SUSFS=y\nCONFIG_SUSFS_SMART_HIDE=y\nCONFIG_SUSFS_HIDE_KSU=y\n" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           
+          # 7. Inserção das Flags no Defconfig
+          printf "CONFIG_KPROBES=y\nCONFIG_HAVE_KPROBES=y\nCONFIG_KPROBE_EVENTS=y\nCONFIG_KALLSYMS=y\nCONFIG_KALLSYMS_ALL=y\nCONFIG_KSU_SUSFS=y\nCONFIG_SUSFS_SMART_HIDE=y\nCONFIG_SUSFS_HIDE_KSU=y\n" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+      
       - name: "🔍 Check SUSFS Integration"
         run: |
           cd ./${{ env.kernelDir }}/${{ env.kernelName }}
