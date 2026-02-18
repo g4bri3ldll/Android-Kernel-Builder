@@ -147,7 +147,12 @@ jobs:
             echo "CONFIG_HZ_300=y"
             echo "CONFIG_IOSCHED_NOOP=y"
             echo "CONFIG_DEFAULT_NOOP=y"
-          } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+            echo "CONFIG_RD_LZ4=y"
+            echo "CONFIG_RD_ZSTD=y"
+            echo "CONFIG_LZ4_DECOMPRESS=y"
+            echo "CONFIG_ZSTD_DECOMPRESS=y"
+          } 
+          >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           # Remove travas de otimização e Hz antigos se existirem
           sed -i 's/CONFIG_CC_OPTIMIZE_FOR_SIZE=y/CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
