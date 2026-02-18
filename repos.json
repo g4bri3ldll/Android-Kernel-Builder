@@ -1,7 +1,7 @@
 [  {
     "kernelSource": {
       "name": "hawaiip",
-      "repo": "https://github.com/g4bri3ldll/source_hawaiip_ksu_susfs",
+      "repo": "https://github.com/g4bri3ldll/motorola_source_code_hawaiip",
       "branch": "main",
       "device": "p410ae"
     },
