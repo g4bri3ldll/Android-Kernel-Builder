@@ -84,40 +84,35 @@ jobs:
           params: "${{ toJSON(matrix.repos.params) }}"
           THREAD: $(nproc --all)
         run: |
-          echo "PATH Variable: $PATH"
           ARCH=$(echo $params | jq -r ".ARCH")
-          CROSS_COMPILE=$(echo $params | jq -r ".CROSS_COMPILE")
-          CROSS_COMPILE_COMPAT=$(echo $params | jq -r ".CROSS_COMPILE_COMPAT")
-          CROSS_COMPILE_ARM32=$(echo $params | jq -r ".CROSS_COMPILE_ARM32")
-          CLANG_TRIPLE=$(echo $params | jq -r ".CLANG_TRIPLE")
-          AR=$(echo $params | jq -r ".AR")
-          CC=$(echo $params | jq -r ".CC")
-
           echo "ARCH=$ARCH" >> $GITHUB_ENV
-
+          
           args="-j$(nproc --all)"
           if [ -n "${{ env.OUT_DIR }}" ]; then
             mkdir -p $(pwd)/${{ env.OUT_DIR }}
             args="$args O=$(pwd)/${{ env.OUT_DIR }}"
           fi
-          if [ -n "$ARCH" ]; then
-            args="$args ARCH=$ARCH"
+          
+          # Se CC for clang, montamos os argumentos específicos
+          CC_VAL=$(echo $params | jq -r ".CC")
+          if [ "$CC_VAL" = "clang" ]; then
+            args="$args CC=clang \
+                  HOSTCC=clang \
+                  CLANG_TRIPLE=$(echo $params | jq -r ".CLANG_TRIPLE") \
+                  CROSS_COMPILE=$(echo $params | jq -r ".CROSS_COMPILE") \
+                  CROSS_COMPILE_ARM32=$(echo $params | jq -r ".CROSS_COMPILE_COMPAT") \
+                  AR=$(echo $params | jq -r ".AR") \
+                  NM=llvm-nm \
+                  OBJCOPY=llvm-objcopy \
+                  OBJDUMP=llvm-objdump \
+                  STRIP=llvm-strip"
+          else
+            # Caso contrário, mantém o padrão GCC
+            args="$args ARCH=$ARCH \
+                  CROSS_COMPILE=$(echo $params | jq -r ".CROSS_COMPILE") \
+                  CROSS_COMPILE_ARM32=$(echo $params | jq -r ".CROSS_COMPILE_COMPAT")"
           fi
-          if [ -n "$CROSS_COMPILE" ]; then
-            args="$args CROSS_COMPILE=$CROSS_COMPILE"
-          fi
-          if [ -n "$CLANG_TRIPLE" ]; then
-            args="$args CLANG_TRIPLE=$CLANG_TRIPLE"
-          fi
-          if [ -n "$CROSS_COMPILE_COMPAT" ]; then
-            args="$args CROSS_COMPILE_ARM32=$CROSS_COMPILE_COMPAT"
-          fi
-          if [ -n "$AR" ]; then
-            args="$args AR=$AR"
-          fi
-          if [ -n "$CC" ]; then
-            args="$args CC=$CC"
-          fi
+          
           echo "args=$args" >> $GITHUB_OUTPUT
 
       - name: "😋 Update KernelSU (ReSukiSU)"
@@ -171,9 +166,15 @@ jobs:
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
           args: ${{ steps.generate-args.outputs.args }}
+          KBUILD_BUILD_USER: "g4bri3ldll"
+          KBUILD_BUILD_HOST: "ReSukiSU-Lab"
         run: |
+          # Remove o sufixo -dirty para o nome ficar limpo
+          export LOCALVERSION=""
+          
           echo "PATH Variable: $PATH"
-          make ${args}
+          # Comando de build com os argumentos do Clang/GCC + seu nome
+          make ${args} ARCH=${{ env.ARCH }}
 
       - name: "💛 Upload Image"
         uses: actions/upload-artifact@v4
