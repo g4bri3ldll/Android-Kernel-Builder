@@ -134,7 +134,7 @@ jobs:
           sed -i 's/u32 current_sid(void)/ \/\/ u32 current_sid(void)/g' ./drivers/kernelsu/selinux/selinux.c 2>/dev/null || true
           sed -i 's/atomic_set(&current->seccomp.filter_count, 0);/\/\/ atomic_set(\&current->seccomp.filter_count, 0);/g' ./drivers/kernelsu/core_hook.c
 
-          # 3. Baixar SUSFS 4.19 (GitLab Simonpunk)
+          # 3. Baixar SUSFS 4.19
           cd ../..
           git clone https://gitlab.com/simonpunk/susfs4ksu.git susfs_src
           
@@ -142,22 +142,22 @@ jobs:
           cp ./susfs_src/kernel_patches/fs/susfs.c ./${{ env.kernelDir }}/${{ env.kernelName }}/fs/
           cp ./susfs_src/kernel_patches/include/linux/susfs.h ./${{ env.kernelDir }}/${{ env.kernelName }}/include/linux/
           
-          # 5. Aplicação dos Patches
+          # 5. Aplicação dos Patches e Integração Manual
           cd ./${{ env.kernelDir }}/${{ env.kernelName }}
+          
+          # Hook no open.c (Garantindo que o patch aplique ou o sed complete)
           sed -i 's/return do_sys_open(AT_FDCWD, filename, flags, mode);/return do_sys_open(AT_FDCWD, filename, flags, mode);/g' fs/open.c
-          patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "⚠️ Aviso: Conflitos ignorados"
+          patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "⚠️ Conflitos no kernel ignorados"
           
-          # 6. Integração Manual (Reescrita Segura do Kconfig)
-          cd drivers/kernelsu
-          mv Kconfig Kconfig.old
-          printf 'config KSU_SUSFS\n\tbool "KernelSU SUSFS Support"\n\tdefault y\n\thelp\n\t  Enable support for SUSFS in KernelSU.\n\n' > Kconfig
-          cat Kconfig.old >> Kconfig
+          # 6. Integração do Menu no Kconfig do KSU (Método Infalível)
+          mv drivers/kernelsu/Kconfig drivers/kernelsu/Kconfig.old
+          printf 'config KSU_SUSFS\n\tbool "KernelSU SUSFS Support"\n\tdefault y\n\thelp\n\t  Enable support for SUSFS in KernelSU.\n\n' > drivers/kernelsu/Kconfig
+          cat drivers/kernelsu/Kconfig.old >> drivers/kernelsu/Kconfig
           
-          # Adiciona o include no ksu.c
-          grep -q "susfs.h" ksu.c || sed -i '1i #include <linux/susfs.h>' ksu.c
-          cd ../..
-          
-          # 7. Inserção das Flags no Defconfig
+          # Include do SUSFS no ksu.c
+          grep -q "susfs.h" drivers/kernelsu/ksu.c || sed -i '1i #include <linux/susfs.h>' drivers/kernelsu/ksu.c
+
+          # 7. Flags no Defconfig
           printf "CONFIG_KPROBES=y\nCONFIG_HAVE_KPROBES=y\nCONFIG_KPROBE_EVENTS=y\nCONFIG_KALLSYMS=y\nCONFIG_KALLSYMS_ALL=y\nCONFIG_KSU_SUSFS=y\nCONFIG_SUSFS_SMART_HIDE=y\nCONFIG_SUSFS_HIDE_KSU=y\n" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
       
       - name: "🔍 Check SUSFS Integration"
