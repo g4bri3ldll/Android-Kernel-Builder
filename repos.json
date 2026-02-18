@@ -1,11 +1,11 @@
 [  {
     "kernelSource": {
       "name": "hawaiip",
-      "repo": "https://github.com/g4bri3ldll/motorola_source_code_hawaiip",
+      "repo": "https://github.com/g4bri3ldll/source_hawaiip_ksu_susfs",
       "branch": "main",
       "device": "p410ae"
     },
-    "withKernelSU": true,
+    "withKernelSU": false,
     "toolchains": [
       {
         "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",
