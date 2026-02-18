@@ -146,17 +146,13 @@ jobs:
           sed -i 's/return do_sys_open(AT_FDCWD, filename, flags, mode);/return do_sys_open(AT_FDCWD, filename, flags, mode);/g' fs/open.c
           patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "⚠️ Patch Kernel ignorado"
           
-          # 6. Forçar Ativação do SUSFS no KernelSU (Reescrita e Headers)
-          cd drivers/kernelsu
-          mv Kconfig Kconfig.old
-          printf 'config KSU_SUSFS\n\tbool "KernelSU SUSFS Support"\n\tdefault y\n\thelp\n\t  Enable support for SUSFS in KernelSU.\n\n' > Kconfig
-          cat Kconfig.old >> Kconfig
+          # 6. Integração Manual (Injeção via SED - Mais segura)
+          # Injeta o menu do SUSFS logo após a primeira linha do Kconfig do KSU
+          sed -i '1a config KSU_SUSFS\n\tbool "KernelSU SUSFS Support"\n\tdefault y\n\thelp\n\t  Enable support for SUSFS in KernelSU.\n' drivers/kernelsu/Kconfig
           
-          # Resolve erro "vm_flags_t" injetando mm.h e susfs.h no ksu.c
-          sed -i '1i #include <linux/mm.h>\n#include <linux/susfs.h>' ksu.c
+          # Injeta o include necessário no ksu.c
+          sed -i '1i #include <linux/mm.h>\n#include <linux/susfs.h>' drivers/kernelsu/ksu.c
           
-          cd ../..
-
           # 7. Flags no Defconfig
           printf "CONFIG_KPROBES=y\nCONFIG_HAVE_KPROBES=y\nCONFIG_KPROBE_EVENTS=y\nCONFIG_KALLSYMS=y\nCONFIG_KALLSYMS_ALL=y\nCONFIG_KSU_SUSFS=y\nCONFIG_SUSFS_SMART_HIDE=y\nCONFIG_SUSFS_HIDE_KSU=y\n" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
       
