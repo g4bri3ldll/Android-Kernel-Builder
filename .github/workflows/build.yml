@@ -149,15 +149,26 @@ jobs:
           sed -i 's/return do_sys_open(AT_FDCWD, filename, flags, mode);/return do_sys_open(AT_FDCWD, filename, flags, mode);/g' fs/open.c
           patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "⚠️ Conflitos no kernel ignorados"
           
-          # 6. Integração do Menu no Kconfig do KSU (Método Infalível)
-          mv drivers/kernelsu/Kconfig drivers/kernelsu/Kconfig.old
-          printf 'config KSU_SUSFS\n\tbool "KernelSU SUSFS Support"\n\tdefault y\n\thelp\n\t  Enable support for SUSFS in KernelSU.\n\n' > drivers/kernelsu/Kconfig
-          cat drivers/kernelsu/Kconfig.old >> drivers/kernelsu/Kconfig
+          # 6. Integração Manual (Reescrita Segura e Injeção de Headers)
+          cd drivers/kernelsu
           
-          # Include do SUSFS no ksu.c
-          grep -q "susfs.h" drivers/kernelsu/ksu.c || sed -i '1i #include <linux/susfs.h>' drivers/kernelsu/ksu.c
+          # Garante que o menu do SUSFS apareça no topo do Kconfig
+          mv Kconfig Kconfig.old
+          printf 'config KSU_SUSFS\n\tbool "KernelSU SUSFS Support"\n\tdefault y\n\thelp\n\t  Enable support for SUSFS in KernelSU.\n\n' > Kconfig
+          cat Kconfig.old >> Kconfig
+          
+          # Resolve erro "unknown type name vm_flags_t" adicionando mm.h antes de susfs.h
+          if ! grep -q "linux/mm.h" ksu.c; then
+            sed -i '1i #include <linux/mm.h>\n#include <linux/susfs.h>' ksu.c
+          else
+            # Se mm.h já existir, apenas insere o susfs.h logo abaixo dele
+            sed -i '/#include <linux\/mm.h>/a #include <linux/susfs.h>' ksu.c
+          fi
+          
+          # Volta para a raiz do kernel antes de mexer no Defconfig
+          cd ../..
 
-          # 7. Flags no Defconfig
+          # 7. Flags no Defconfig (Sintaxe limpa para evitar caracteres ocultos)
           printf "CONFIG_KPROBES=y\nCONFIG_HAVE_KPROBES=y\nCONFIG_KPROBE_EVENTS=y\nCONFIG_KALLSYMS=y\nCONFIG_KALLSYMS_ALL=y\nCONFIG_KSU_SUSFS=y\nCONFIG_SUSFS_SMART_HIDE=y\nCONFIG_SUSFS_HIDE_KSU=y\n" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
       
       - name: "🔍 Check SUSFS Integration"
