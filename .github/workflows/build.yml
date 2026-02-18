@@ -120,34 +120,40 @@ jobs:
           fi
           echo "args=$args" >> $GITHUB_OUTPUT
 
-      - name: "😋 Update KernelSU Next & SUSFS"
+      - name: "😋 Update KernelSU Next & SUSFS 4.19"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
-          # 1. Limpeza e Download do KernelSU Next v1.1.0
+          # 1. Instalar KernelSU Next v1.1.0
           if [ -d "./KernelSU" ]; then rm -rf "./KernelSU"; fi
           if [ -d "./drivers/kernelsu" ]; then rm -rf "./drivers/kernelsu"; fi
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/v1.1.0/kernel/setup.sh" | bash -s v1.1.0
 
-          # 2. Hacks de Compatibilidade para Kernel 4.19 (SELinux & Seccomp)
+          # 2. Hacks de Compatibilidade (Evitar erros de compilação no 4.19)
           sed -i '/u32 current_sid(void);/d' ./drivers/kernelsu/selinux/selinux.h 2>/dev/null || true
           sed -i 's/u32 current_sid(void)/ \/\/ u32 current_sid(void)/g' ./drivers/kernelsu/selinux/selinux.c 2>/dev/null || true
           sed -i 's/atomic_set(&current->seccomp.filter_count, 0);/\/\/ atomic_set(\&current->seccomp.filter_count, 0);/g' ./drivers/kernelsu/core_hook.c
 
-          # 3. Preparação do SUSFS (Mirror Star-Seven)
+          # 3. Baixar SUSFS 4.19 (Clonando o GitLab que você achou)
           cd ../..
-          git clone https://github.com/Star-Seven/susfs4ksu.git susfs_src
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git susfs_src
           
-          # 4. Injeção de arquivos SUSFS na árvore do Kernel
+          # 4. Injetar arquivos SUSFS na árvore do Kernel
           cp ./susfs_src/kernel_patches/fs/susfs.c ./${{ env.kernelDir }}/${{ env.kernelName }}/fs/
           cp ./susfs_src/kernel_patches/include/linux/susfs.h ./${{ env.kernelDir }}/${{ env.kernelName }}/include/linux/
           
-          # 5. Aplicação dos Patches (Kernel + KernelSU)
+          # 5. Aplicar os Patches de Ocultação
           cd ./${{ env.kernelDir }}/${{ env.kernelName }}
-          patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "Aviso: Patch do kernel 4.19 falhou"
-          patch -p1 < ../../susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || echo "Aviso: Patch de integração KSU-SUSFS falhou"
+          
+          # Patch 50 (Kernel 4.19) - Modifica fs/open.c e fs/stat.c
+          patch -p1 < ../../susfs_src/kernel_patches/50_add_susfs_in_kernel-4.19.patch || echo "Aviso: Patch 4.19 falhou"
+          
+          # Patch 10 (Integração KSU) - Rodando dentro da pasta do KSU
+          cd drivers/kernelsu
+          patch -p1 < ../../../susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || echo "Aviso: Patch KSU falhou"
+          cd ../..
 
-          # 6. Ativação das Flags no Defconfig (KSU + SUSFS)
+          # 6. Ativar TODAS as Flags no Defconfig (KSU + SUSFS + Kallsyms)
           {
             echo "CONFIG_KPROBES=y"
             echo "CONFIG_HAVE_KPROBES=y"
@@ -159,8 +165,8 @@ jobs:
             echo "CONFIG_SUSFS_HIDE_KSU=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
-          cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}    
-
+          # Conferir se as flags entraram
+          cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
