@@ -134,13 +134,16 @@ jobs:
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
 
-          # --- TUNING DE RESPONSIVIDADE (SEM OVERCLOCK) ---
+          # --- TUNING DE RESPONSIVIDADE E CORREÇÃO DA BARRA ---
           
           # 1. Ajusta latência de subida no DTS (1000ms -> 200ms)
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
 
-          # 2. Desativa economia de energia agressiva (WQ) e aplica configs de performance
+          # 2. Reduz a latência do VSync para evitar o lag na barra de notificações (QPR Fix)
+          find arch/arm64/boot/dts/mediatek/ -name "*.dtsi" | xargs sed -i 's/vsync-vblank-wait-us = <.*>/vsync-vblank-wait-us = <100>/g'
+
+          # 3. Aplica configs de performance, ZRAM e correções de FPS
           {
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
             echo "CONFIG_KPROBES=y"
@@ -158,41 +161,21 @@ jobs:
             echo "CONFIG_ZSTD_DECOMPRESS=y"
             echo "CONFIG_ZSTD_COMPRESS=y"
             echo "CONFIG_CRYPTO_ZSTD=y"
+            # Flags para fluidez da barra e GPU
+            echo "CONFIG_MTK_FPSGO_V3=y"
+            echo "CONFIG_MTK_DISPLAY_BOOT_UP_HIGH_FPS=y"
+            echo "CONFIG_MTK_MET_PLF=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           # --- AJUSTES FINAIS NO DEFCONFIG ---
           
-          # Garante que flags antigas sejam substituídas pelas novas
+          # Garante que flags antigas sejam substituídas e GPU monitorada
           sed -i 's/CONFIG_CC_OPTIMIZE_FOR_SIZE=y/CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_HZ_100=y/CONFIG_HZ_300=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          sed -i 's/CONFIG_MTK_MONITOR_CHIPS_Gpu=m/CONFIG_MTK_MONITOR_CHIPS_Gpu=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-
-      - name: "📱 Ativar Double Tap to Wake (Novatek)"
-        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
-        run: |
-          # 1. Ativa o suporte a gestos no header
-          find drivers/input/touchscreen/ -name "nt36xxx.h" -exec sed -i 's/#define WAKEUP_GESTURE 0/#define WAKEUP_GESTURE 1/g' {} +
-
-          # 2. Comenta a linha que desativa o IRQ no suspend (mantém o touch "ouvindo")
-          find drivers/input/touchscreen/ -name "nt36xxx.c" -exec sed -i 's/disable_irq(ts->client->irq);/\/\/ disable_irq(ts->client->irq);/g' {} +
-
-          # 3. Garante que o IRQ possa acordar o sistema (Wakeup Source)
-          find drivers/input/touchscreen/ -name "nt36xxx.c" -exec sed -i '/enable_irq_wake(ts->client->irq);/s/\/\/ //g' {} +
-
-          # 4. FORÇA o modo de gestos (0x13) em vez de desligar o chip (0x11) ao apagar a tela
-          find drivers/input/touchscreen/ -name "nt36xxx.c" -exec sed -i 's/buf\[1\] = 0x11;/buf\[1\] = 0x13;/g' {} +
-
-          # --- VERIFICAÇÃO NOS LOGS ---
-          echo ">>> Verificando WAKEUP_GESTURE:"
-          find drivers/input/touchscreen/ -name "nt36xxx.h" -exec grep -H "WAKEUP_GESTURE" {} +
-          
-          echo ">>> Verificando disable_irq (deve estar comentado):"
-          find drivers/input/touchscreen/ -name "nt36xxx.c" -exec grep -H "disable_irq(ts->client->irq);" {} +
-          
-          echo ">>> Verificando Gesture Mode (deve mostrar 0x13):"
-          find drivers/input/touchscreen/ -name "nt36xxx.c" -exec grep -H "0x13" {} +
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
