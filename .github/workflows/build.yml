@@ -172,11 +172,18 @@ jobs:
       - name: "📱 Ativar Double Tap to Wake (Novatek)"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         run: |
-          # Altera a trava de gestos de 0 para 1 em todos os headers Novatek encontrados
+          # 1. Ativa o suporte a gestos no header
           find drivers/input/touchscreen/ -name "nt36xxx.h" -exec sed -i 's/#define WAKEUP_GESTURE 0/#define WAKEUP_GESTURE 1/g' {} +
 
-          # Verifica se a alteração foi aplicada com sucesso nos logs da build
-          find drivers/input/touchscreen/ -name "nt36xxx.h" -exec grep -H "WAKEUP_GESTURE" {} +    
+          # 2. Comenta a linha que desativa o IRQ no suspend (impede o enable=0 que vimos no dmesg)
+          find drivers/input/touchscreen/ -name "nt36xxx.c" -exec sed -i 's/disable_irq(ts->client->irq);/\/\/ disable_irq(ts->client->irq);/g' {} +
+
+          # 3. Garante que o IRQ continue capaz de acordar o sistema (Wakeup Source)
+          find drivers/input/touchscreen/ -name "nt36xxx.c" -exec sed -i '/enable_irq_wake(ts->client->irq);/s/\/\/ //g' {} +
+
+          # Verifica se as alterações foram aplicadas
+          find drivers/input/touchscreen/ -name "nt36xxx.h" -exec grep -H "WAKEUP_GESTURE" {} +
+          find drivers/input/touchscreen/ -name "nt36xxx.c" -exec grep -H "disable_irq(ts->client->irq);" {} +
 
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
