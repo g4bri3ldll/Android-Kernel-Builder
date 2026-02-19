@@ -134,16 +134,23 @@ jobs:
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
 
-          # --- TUNING DE RESPONSIVIDADE E CORREÇÃO DA BARRA ---
+          # --- TUNING DE RESPONSIVIDADE (HELIO G37) ---
           
           # 1. Ajusta latência de subida no DTS (1000ms -> 200ms)
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
 
-          # 2. Reduz a latência do VSync para evitar o lag na barra de notificações (QPR Fix)
+          # 2. Ajuste de Idle-States para o G37 (Saída rápida de Deep Sleep)
+          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <1200>/min-residency-us = <500>/g'
+          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <2000>/min-residency-us = <1000>/g'
+
+          # 3. Reduz a latência do VSync para evitar o lag na barra (90Hz Fix)
           find arch/arm64/boot/dts/mediatek/ -name "*.dtsi" | xargs sed -i 's/vsync-vblank-wait-us = <.*>/vsync-vblank-wait-us = <100>/g'
 
-          # 3. Aplica configs de performance, ZRAM e correções de FPS
+          # 4. Ajuste de clock da GPU PowerVR para o G37 (680MHz Estável)
+          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/clock-frequency = <570000000>/clock-frequency = <680000000>/g'
+
+          # 5. Aplica configs de performance, ZRAM e correções de FPS
           {
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
             echo "CONFIG_KPROBES=y"
@@ -161,10 +168,13 @@ jobs:
             echo "CONFIG_ZSTD_DECOMPRESS=y"
             echo "CONFIG_ZSTD_COMPRESS=y"
             echo "CONFIG_CRYPTO_ZSTD=y"
-            # Flags para fluidez da barra e GPU
+            # Performance Helio G37 (Gaming/Fluidez)
             echo "CONFIG_MTK_FPSGO_V3=y"
             echo "CONFIG_MTK_DISPLAY_BOOT_UP_HIGH_FPS=y"
             echo "CONFIG_MTK_MET_PLF=y"
+            echo "CONFIG_SCHED_AUTOGROUP=y"
+            echo "CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y"
+            echo "CONFIG_MTK_COMBO_CHIP_CONSYS_6765=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           # --- AJUSTES FINAIS NO DEFCONFIG ---
