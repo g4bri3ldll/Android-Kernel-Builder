@@ -184,7 +184,8 @@ jobs:
           # Verifica se as alterações foram aplicadas
           find drivers/input/touchscreen/ -name "nt36xxx.h" -exec grep -H "WAKEUP_GESTURE" {} +
           find drivers/input/touchscreen/ -name "nt36xxx.c" -exec grep -H "disable_irq(ts->client->irq);" {} +
-
+          find drivers/input/touchscreen/ -name "nt36xxx.c" -exec sed -i 's/buf\[1\] = 0x11;/buf\[1\] = 0x13;/g' {} +
+          
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
