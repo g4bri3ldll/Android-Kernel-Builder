@@ -157,6 +157,9 @@ jobs:
             echo "CONFIG_RD_ZSTD=y"
             echo "CONFIG_LZ4_DECOMPRESS=y"
             echo "CONFIG_ZSTD_DECOMPRESS=y"
+            echo "CONFIG_ZSTD_COMPRESS=y"
+            echo "CONFIG_CRYPTO_ZSTD=y"
+            echo "CONFIG_ZRAM_DEF_COMP=\"zstd\""
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           # --- AJUSTES FINAIS NO DEFCONFIG ---
@@ -165,6 +168,8 @@ jobs:
           sed -i 's/CONFIG_CC_OPTIMIZE_FOR_SIZE=y/CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_HZ_100=y/CONFIG_HZ_300=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          sed -i 's/CONFIG_ZRAM_DEF_COMP="lz4"/CONFIG_ZRAM_DEF_COMP="zstd"/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          sed -i 's/CONFIG_ZRAM_DEF_COMP="lzo"/CONFIG_ZRAM_DEF_COMP="zstd"/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
