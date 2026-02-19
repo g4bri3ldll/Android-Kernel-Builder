@@ -134,10 +134,16 @@ jobs:
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
 
-          # --- CONFIGURAÇÕES OBRIGATÓRIAS (DEFCONFIG) ---
+          # --- TUNING DE RESPONSIVIDADE (SEM OVERCLOCK) ---
           
-          # Injeção de Kprobes e Performance
+          # 1. Ajusta latência de subida no DTS (1000ms -> 200ms)
+          # Nota: Se o arquivo estiver em subpastas, o sed procurará recursivamente
+          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
+          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
+
+          # 2. Desativa economia de energia agressiva (WQ) e aplica configs de performance
           {
+            echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
             echo "CONFIG_KPROBES=y"
             echo "CONFIG_HAVE_KPROBES=y"
             echo "CONFIG_KPROBE_EVENTS=y"
@@ -151,12 +157,14 @@ jobs:
             echo "CONFIG_RD_ZSTD=y"
             echo "CONFIG_LZ4_DECOMPRESS=y"
             echo "CONFIG_ZSTD_DECOMPRESS=y"
-          } 
-          >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
-          # Remove travas de otimização e Hz antigos se existirem
+          # --- AJUSTES FINAIS NO DEFCONFIG ---
+          
+          # Garante que flags antigas sejam substituídas pelas novas
           sed -i 's/CONFIG_CC_OPTIMIZE_FOR_SIZE=y/CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_HZ_100=y/CONFIG_HZ_300=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          sed -i 's/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
