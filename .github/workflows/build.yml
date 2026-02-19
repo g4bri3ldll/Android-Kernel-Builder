@@ -158,7 +158,6 @@ jobs:
             echo "CONFIG_ZSTD_DECOMPRESS=y"
             echo "CONFIG_ZSTD_COMPRESS=y"
             echo "CONFIG_CRYPTO_ZSTD=y"
-            echo "CONFIG_ZRAM_DEF_COMP=\"zstd\""
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           # --- AJUSTES FINAIS NO DEFCONFIG ---
