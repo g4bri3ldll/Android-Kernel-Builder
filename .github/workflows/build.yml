@@ -113,32 +113,39 @@ jobs:
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
+          # --- Instalação do KernelSU Next ---
           rm -rf KernelSU drivers/kernelsu
-
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -
+
+          # --- Patches de Compatibilidade (Kernel 4.19) ---
+          # 1. Resolve o erro 'TWA_RESUME' (Substitui pelo método suportado no 4.19)
+          sed -i 's/TWA_RESUME/TWA_SIGNAL/g' drivers/kernelsu/allowlist.c
+
+          # 2. Resolve o erro 'put_task_struct' forçando a inclusão do cabeçalho de tarefas
+          sed -i '1i #include <linux/sched/task.h>' drivers/kernelsu/allowlist.c
           
+          # 3. Desativa ganchos incompatíveis e ajusta seccomp
           sed -i '/TP hooks are incompatible/s/^/# /' drivers/kernelsu/Kbuild
-          
           
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
             sed -i 's/atomic_set(&tsk->seccomp.filter_count, 0);/\/\/ atomic_set(\&tsk->seccomp.filter_count, 0);/g' drivers/kernelsu/app_profile.c
           fi
 
-          
+          # 4. Tradução de funções de memória (nofault)
           grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
           
+          # --- Tuning de Performance (DTS/DTSI) ---
+          # Ajuste de latência de subida (rise-time)
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
 
+          # Ajuste de Idle-States (Residency)
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <1200>/min-residency-us = <500>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <2000>/min-residency-us = <1000>/g'
 
-          find arch/arm64/boot/dts/mediatek/ -name "*.dtsi" | xargs sed -i 's/vsync-vblank-wait-us = <.*>/vsync-vblank-wait-us = <100>/g'
-
-          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/clock-frequency = <570000000>/clock-frequency = <680000000>/g'
-
+          # --- Configurações do Defconfig ---
           {
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
             echo "CONFIG_KPROBES=y"
@@ -164,13 +171,13 @@ jobs:
             echo "CONFIG_MTK_COMBO_CHIP_CONSYS_6765=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
-          # --- AJUSTES FINAIS NO DEFCONFIG ---
-          
+          # --- Ajustes de Substituição Final ---
           sed -i 's/CONFIG_CC_OPTIMIZE_FOR_SIZE=y/CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_HZ_100=y/CONFIG_HZ_300=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_MTK_MONITOR_CHIPS_Gpu=m/CONFIG_MTK_MONITOR_CHIPS_Gpu=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
+          # Mostra o resultado final do defconfig para conferência
           cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           
       - name: "👍 Make defconfig"
