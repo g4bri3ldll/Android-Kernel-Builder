@@ -179,6 +179,16 @@ jobs:
           if [ -f "drivers/kernelsu/selinux/selinux.c" ]; then
             sed -i '1i #define selinux_cred(cred) ((struct task_security_struct *)(cred)->security)' drivers/kernelsu/selinux/selinux.c
           fi
+
+          # 13. Desativa a injeção de SEPolicy em tempo real (Incompatível com policydb do 4.19)
+          if [ -f "drivers/kernelsu/selinux/sepolicy.c" ]; then
+            echo "/* Disabled for Kernel 4.19 compatibility - SEPolicy injection handled by userspace */" > drivers/kernelsu/selinux/sepolicy.c
+          fi
+          
+          # 14. Fix adicional para o header de regras
+          if [ -f "drivers/kernelsu/selinux/sepolicy.h" ]; then
+            echo "/* Disabled */" > drivers/kernelsu/selinura/sepolicy.h
+          fi
           
           # --- Tuning de Performance (DTS/DTSI) ---
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
