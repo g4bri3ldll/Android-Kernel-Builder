@@ -131,8 +131,13 @@ jobs:
             # Comenta a linha independente de usar 'tsk' ou 'current'
             sed -i 's/atomic_set(&.*seccomp.filter_count, 0);/\/\/ atomic_set(...);/g' drivers/kernelsu/app_profile.c
           fi
-
-          # 4. Tradução de funções de memória (nofault)
+          
+          # 4. Resolve o erro 'linux/pgtable.h' no sucompat.c (Tradução para Kernel 4.19)
+          if [ -f "drivers/kernelsu/sucompat.c" ]; then
+            sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' drivers/kernelsu/sucompat.c
+          fi
+          
+          # 5. Tradução de funções de memória (nofault)
           grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
