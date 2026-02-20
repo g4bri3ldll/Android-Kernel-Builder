@@ -153,6 +153,18 @@ jobs:
 
           # 8. Resolve TWA_RESUME e Headers em TODOS os arquivos do KernelSU
           grep -rli 'TWA_RESUME' drivers/kernelsu/ | xargs -i@ sed -i 's/TWA_RESUME/TWA_SIGNAL/g' @
+
+          # 9. Resolve TWA_RESUME e Headers em arquivos críticos (allowlist, setuid, umount)
+          grep -rli 'TWA_RESUME' drivers/kernelsu/ | xargs -i@ sed -i 's/TWA_RESUME/TWA_SIGNAL/g' @
+          
+          # Lista expandida para corrigir o erro de umount sem duplicar o que já foi feito
+          for file in drivers/kernelsu/allowlist.c drivers/kernelsu/setuid_hook.c drivers/kernelsu/kernel_umount.c; do
+            if [ -f "$file" ]; then
+              # Garante os headers e a definição de TWA_SIGNAL caso o kernel 4.19 não os tenha
+              sed -i '1i #include <linux/sched/task.h>\n#include <linux/task_work.h>' $file
+              sed -i '1i #ifndef TWA_SIGNAL\n#define TWA_SIGNAL 1\n#endif' $file
+            fi
+          done
           
           # Garante que os headers de task estejam em quem precisa (setuid_hook e allowlist)
           sed -i '1i #include <linux/sched/task.h>\n#include <linux/task_work.h>' drivers/kernelsu/setuid_hook.c
