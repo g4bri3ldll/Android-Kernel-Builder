@@ -116,7 +116,8 @@ jobs:
           rm -rf KernelSU drivers/kernelsu
 
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -
-          
+          sed -i 's/TWA_RESUME/TWA_SIGNAL/g' drivers/kernelsu/allowlist.c
+          sed -i '1i #include <linux/sched/task.h>' drivers/kernelsu/allowlist.c
           sed -i '/TP hooks are incompatible/s/^/# /' drivers/kernelsu/Kbuild
           
           
