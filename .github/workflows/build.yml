@@ -118,11 +118,12 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -
 
           # --- Patches de Compatibilidade (Kernel 4.19) ---
-          # 1. Resolve o erro 'TWA_RESUME' (Substitui pelo método suportado no 4.19)
+          # 1. Resolve o erro 'TWA_RESUME' e define TWA_SIGNAL manualmente para o 4.19
           sed -i 's/TWA_RESUME/TWA_SIGNAL/g' drivers/kernelsu/allowlist.c
+          sed -i '1i #ifndef TWA_SIGNAL\n#define TWA_SIGNAL 1\n#endif' drivers/kernelsu/allowlist.c
 
-          # 2. Resolve o erro 'put_task_struct' forçando a inclusão do cabeçalho de tarefas
-          sed -i '1i #include <linux/sched/task.h>' drivers/kernelsu/allowlist.c
+          # 2. Resolve o erro 'put_task_struct' e garante os headers de task_work
+          sed -i '1i #include <linux/sched/task.h>\n#include <linux/task_work.h>' drivers/kernelsu/allowlist.c
           
           # 3. Desativa ganchos incompatíveis e ajusta seccomp
           sed -i '/TP hooks are incompatible/s/^/# /' drivers/kernelsu/Kbuild
@@ -137,11 +138,9 @@ jobs:
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
           
           # --- Tuning de Performance (DTS/DTSI) ---
-          # Ajuste de latência de subida (rise-time)
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
 
-          # Ajuste de Idle-States (Residency)
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <1200>/min-residency-us = <500>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <2000>/min-residency-us = <1000>/g'
 
@@ -177,7 +176,6 @@ jobs:
           sed -i 's/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_MTK_MONITOR_CHIPS_Gpu=m/CONFIG_MTK_MONITOR_CHIPS_Gpu=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
-          # Mostra o resultado final do defconfig para conferência
           cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           
       - name: "👍 Make defconfig"
