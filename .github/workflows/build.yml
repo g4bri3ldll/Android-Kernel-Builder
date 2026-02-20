@@ -118,62 +118,43 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -
 
           # --- Patches de Compatibilidade (Kernel 4.19) ---
-          # 1. Resolve o erro 'TWA_RESUME' e define TWA_SIGNAL manualmente para o 4.19
-          sed -i 's/TWA_RESUME/TWA_SIGNAL/g' drivers/kernelsu/allowlist.c
-          sed -i '1i #ifndef TWA_SIGNAL\n#define TWA_SIGNAL 1\n#endif' drivers/kernelsu/allowlist.c
-
-          # 2. Resolve o erro 'put_task_struct' e garante os headers de task_work
-          sed -i '1i #include <linux/sched/task.h>\n#include <linux/task_work.h>' drivers/kernelsu/allowlist.c
           
-          # 3. Fix do erro 'filter_count' (seccomp) no app_profile.c (Versão Next)
-          if [ -f "drivers/kernelsu/app_profile.c" ]; then
-            
-            # Comenta a linha independente de usar 'tsk' ou 'current'
-            sed -i 's/atomic_set(&.*seccomp.filter_count, 0);/\/\/ atomic_set(...);/g' drivers/kernelsu/app_profile.c
-          fi
-          
-          # 4. Resolve o erro 'linux/pgtable.h' no sucompat.c (Tradução para Kernel 4.19)
-          if [ -f "drivers/kernelsu/sucompat.c" ]; then
-            sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' drivers/kernelsu/sucompat.c
-          fi
-          
-          # 5. Tradução de funções de memória (nofault)
-          grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
-          grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
-          grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
-
-          # 6. Resolve erro de fsnotify no pkg_observer.c (Incompatível com 4.19)
-          if [ -f "drivers/kernelsu/pkg_observer.c" ]; then
-            # Desativa o conteúdo do arquivo para evitar erro de compilação em kernels antigos
-            echo "/* Disabled for Kernel 4.19 compatibility */" > drivers/kernelsu/pkg_observer.c
-          fi
-          
-          # 7. Remove a referência ao pkg_observer no Kbuild para não tentar compilar um arquivo vazio
-          sed -i '/pkg_observer.o/d' drivers/kernelsu/Makefile
-
-          # 8. Resolve TWA_RESUME e Headers em TODOS os arquivos do KernelSU
+          # 1. Correção Universal TWA_RESUME -> TWA_SIGNAL (Geral)
           grep -rli 'TWA_RESUME' drivers/kernelsu/ | xargs -i@ sed -i 's/TWA_RESUME/TWA_SIGNAL/g' @
 
-          # 9. Resolve TWA_RESUME e Headers em arquivos críticos (allowlist, setuid, umount)
-          grep -rli 'TWA_RESUME' drivers/kernelsu/ | xargs -i@ sed -i 's/TWA_RESUME/TWA_SIGNAL/g' @
-          
-          # Lista expandida para corrigir o erro de umount sem duplicar o que já foi feito
-          for file in drivers/kernelsu/allowlist.c drivers/kernelsu/setuid_hook.c drivers/kernelsu/kernel_umount.c; do
+          # 2. Injeção de Headers e Defs em arquivos que usam task_work (allowlist, setuid, umount, supercalls)
+          # Isso resolve os erros de TWA_SIGNAL e put_task_struct de uma vez
+          for file in drivers/kernelsu/allowlist.c drivers/kernelsu/setuid_hook.c drivers/kernelsu/kernel_umount.c drivers/kernelsu/supercalls.c; do
             if [ -f "$file" ]; then
-              # Garante os headers e a definição de TWA_SIGNAL caso o kernel 4.19 não os tenha
               sed -i '1i #include <linux/sched/task.h>\n#include <linux/task_work.h>' $file
               sed -i '1i #ifndef TWA_SIGNAL\n#define TWA_SIGNAL 1\n#endif' $file
             fi
           done
+
+          # 3. Fix do erro 'filter_count' (seccomp) no app_profile.c
+          if [ -f "drivers/kernelsu/app_profile.c" ]; then
+            sed -i 's/atomic_set(&.*seccomp.filter_count, 0);/\/\/ atomic_set(...);/g' drivers/kernelsu/app_profile.c
+          fi
           
-          # Garante que os headers de task estejam em quem precisa (setuid_hook e allowlist)
-          sed -i '1i #include <linux/sched/task.h>\n#include <linux/task_work.h>' drivers/kernelsu/setuid_hook.c
-          sed -i '1i #ifndef TWA_SIGNAL\n#define TWA_SIGNAL 1\n#endif' drivers/kernelsu/setuid_hook.c
+          # 4. Resolve o erro 'linux/pgtable.h' no sucompat.c
+          if [ -f "drivers/kernelsu/sucompat.c" ]; then
+            sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' drivers/kernelsu/sucompat.c
+          fi
+          
+          # 5. Fix do erro fsnotify no pkg_observer.c
+          if [ -f "drivers/kernelsu/pkg_observer.c" ]; then
+            echo "/* Disabled for Kernel 4.19 compatibility */" > drivers/kernelsu/pkg_observer.c
+            sed -i '/pkg_observer.o/d' drivers/kernelsu/Makefile
+          fi
+
+          # 6. Tradução de funções de memória (nofault) em toda a pasta
+          grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
+          grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
+          grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
           
           # --- Tuning de Performance (DTS/DTSI) ---
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
-
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <1200>/min-residency-us = <500>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <2000>/min-residency-us = <1000>/g'
 
