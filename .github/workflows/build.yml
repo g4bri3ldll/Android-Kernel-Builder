@@ -122,9 +122,8 @@ jobs:
           # 1. Correção Universal TWA_RESUME -> TWA_SIGNAL (Geral)
           grep -rli 'TWA_RESUME' drivers/kernelsu/ | xargs -i@ sed -i 's/TWA_RESUME/TWA_SIGNAL/g' @
 
-          # 2. Injeção de Headers e Defs em arquivos que usam task_work (allowlist, setuid, umount, supercalls)
-          # Isso resolve os erros de TWA_SIGNAL e put_task_struct de uma vez
-          for file in drivers/kernelsu/allowlist.c drivers/kernelsu/setuid_hook.c drivers/kernelsu/kernel_umount.c drivers/kernelsu/supercalls.c; do
+          # 2. Injeção de Headers e Defs (Arquivos que usam task_work)
+          for file in drivers/kernelsu/allowlist.c drivers/kernelsu/setuid_hook.c drivers/kernelsu/kernel_umount.c drivers/kernelsu/supercalls.c drivers/kernelsu/su_mount_ns.c; do
             if [ -f "$file" ]; then
               sed -i '1i #include <linux/sched/task.h>\n#include <linux/task_work.h>' $file
               sed -i '1i #ifndef TWA_SIGNAL\n#define TWA_SIGNAL 1\n#endif' $file
