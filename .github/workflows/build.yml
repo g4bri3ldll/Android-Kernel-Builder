@@ -160,6 +160,12 @@ jobs:
           if [ -f "drivers/kernelsu/seccomp_cache.c" ]; then
             sed -i '1i #ifndef SECCOMP_ARCH_NATIVE_NR\n#define SECCOMP_ARCH_NATIVE_NR 512\n#endif' drivers/kernelsu/seccomp_cache.c
           fi
+
+          # 9. Desativa o file_wrapper.c (Incompatível com estruturas fs do 4.19)
+          if [ -f "drivers/kernelsu/file_wrapper.c" ]; then
+            echo "/* Disabled for Kernel 4.19 compatibility */" > drivers/kernelsu/file_wrapper.c
+            sed -i '/file_wrapper.o/d' drivers/kernelsu/Makefile
+          fi
           
           # --- Tuning de Performance (DTS/DTSI) ---
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
