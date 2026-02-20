@@ -166,6 +166,9 @@ jobs:
             echo "/* Disabled for Kernel 4.19 compatibility */" > drivers/kernelsu/file_wrapper.c
             sed -i '/file_wrapper.o/d' drivers/kernelsu/Makefile
           fi
+
+          # 10. Resolve o erro 'linux/pgtable.h' em TODOS os arquivos (Tradução para 4.19)
+          grep -rli '<linux/pgtable.h>' drivers/kernelsu/ | xargs -i@ sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' @
           
           # --- Tuning de Performance (DTS/DTSI) ---
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
