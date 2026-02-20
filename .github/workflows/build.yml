@@ -150,6 +150,13 @@ jobs:
           
           # 7. Remove a referência ao pkg_observer no Kbuild para não tentar compilar um arquivo vazio
           sed -i '/pkg_observer.o/d' drivers/kernelsu/Makefile
+
+          # 8. Resolve TWA_RESUME e Headers em TODOS os arquivos do KernelSU
+          grep -rli 'TWA_RESUME' drivers/kernelsu/ | xargs -i@ sed -i 's/TWA_RESUME/TWA_SIGNAL/g' @
+          
+          # Garante que os headers de task estejam em quem precisa (setuid_hook e allowlist)
+          sed -i '1i #include <linux/sched/task.h>\n#include <linux/task_work.h>' drivers/kernelsu/setuid_hook.c
+          sed -i '1i #ifndef TWA_SIGNAL\n#define TWA_SIGNAL 1\n#endif' drivers/kernelsu/setuid_hook.c
           
           # --- Tuning de Performance (DTS/DTSI) ---
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
