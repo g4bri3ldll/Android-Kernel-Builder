@@ -125,11 +125,11 @@ jobs:
           # 2. Resolve o erro 'put_task_struct' e garante os headers de task_work
           sed -i '1i #include <linux/sched/task.h>\n#include <linux/task_work.h>' drivers/kernelsu/allowlist.c
           
-          # 3. Desativa ganchos incompatíveis e ajusta seccomp
-          sed -i '/TP hooks are incompatible/s/^/# /' drivers/kernelsu/Kbuild
-          
+          # 3. Fix do erro 'filter_count' (seccomp) no app_profile.c (Versão Next)
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
-            sed -i 's/atomic_set(&tsk->seccomp.filter_count, 0);/\/\/ atomic_set(\&tsk->seccomp.filter_count, 0);/g' drivers/kernelsu/app_profile.c
+            
+            # Comenta a linha independente de usar 'tsk' ou 'current'
+            sed -i 's/atomic_set(&.*seccomp.filter_count, 0);/\/\/ atomic_set(...);/g' drivers/kernelsu/app_profile.c
           fi
 
           # 4. Tradução de funções de memória (nofault)
