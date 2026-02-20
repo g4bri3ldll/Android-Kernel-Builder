@@ -180,14 +180,14 @@ jobs:
             sed -i '1i #define selinux_cred(cred) ((struct task_security_struct *)(cred)->security)' drivers/kernelsu/selinux/selinux.c
           fi
 
-          # 13. Desativa a injeção de SEPolicy em tempo real (Incompatível com policydb do 4.19)
-          if [ -f "drivers/kernelsu/selinux/sepolicy.c" ]; then
-            echo "/* Disabled for Kernel 4.19 compatibility - SEPolicy injection handled by userspace */" > drivers/kernelsu/selinux/sepolicy.c
-          fi
-          
-          # 14. Fix adicional para o header de regras
-          if [ -f "drivers/kernelsu/selinux/sepolicy.h" ]; then
-            echo "/* Disabled */" > drivers/kernelsu/selinura/sepolicy.h
+          # 13. Desativa a injeção de SEPolicy (Incompatível com policydb do 4.19)
+          if [ -d "drivers/kernelsu/selinux" ]; then
+            # Corrige o erro de digitação e desativa os arquivos problemáticos
+            echo "/* Disabled for Kernel 4.19 compatibility */" > drivers/kernelsu/selinux/sepolicy.c
+            # O arquivo sepolicy.h geralmente está na mesma pasta
+            if [ -f "drivers/kernelsu/selinux/sepolicy.h" ]; then
+               echo "/* Disabled */" > drivers/kernelsu/selinux/sepolicy.h
+            fi
           fi
           
           # --- Tuning de Performance (DTS/DTSI) ---
