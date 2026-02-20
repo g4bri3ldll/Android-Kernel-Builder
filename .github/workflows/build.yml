@@ -109,48 +109,36 @@ jobs:
           
           echo "args=$args" >> $GITHUB_OUTPUT
 
-      - name: "😋 Update KernelSU (ReSukiSU)"
+      - name: "😋 Update KernelSU"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
-          # Limpeza de segurança
           rm -rf KernelSU drivers/kernelsu
 
-          # Setup do ReSukiSU
-          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
           
-          # --- CORREÇÕES ESPECÍFICAS PARA RE-SUKISU ---
-          
-          # 1. Bypass do erro de Non-GKI no Kbuild
           sed -i '/TP hooks are incompatible/s/^/# /' drivers/kernelsu/Kbuild
-
-          # 2. Fix do erro 'filter_count' (seccomp) no app_profile.c
+          
+          
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
             sed -i 's/atomic_set(&tsk->seccomp.filter_count, 0);/\/\/ atomic_set(\&tsk->seccomp.filter_count, 0);/g' drivers/kernelsu/app_profile.c
           fi
 
-          # 3. Traduções de funções de memória para Kernel 4.19
+          
           grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
-
-          # --- TUNING DE RESPONSIVIDADE (HELIO G37) ---
           
-          # 1. Ajusta latência de subida no DTS (1000ms -> 200ms)
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
 
-          # 2. Ajuste de Idle-States para o G37 (Saída rápida de Deep Sleep)
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <1200>/min-residency-us = <500>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <2000>/min-residency-us = <1000>/g'
 
-          # 3. Reduz a latência do VSync para evitar o lag na barra (90Hz Fix)
           find arch/arm64/boot/dts/mediatek/ -name "*.dtsi" | xargs sed -i 's/vsync-vblank-wait-us = <.*>/vsync-vblank-wait-us = <100>/g'
 
-          # 4. Ajuste de clock da GPU PowerVR para o G37 (680MHz Estável)
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/clock-frequency = <570000000>/clock-frequency = <680000000>/g'
 
-          # 5. Aplica configs de performance, ZRAM e correções de FPS
           {
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
             echo "CONFIG_KPROBES=y"
@@ -168,7 +156,6 @@ jobs:
             echo "CONFIG_ZSTD_DECOMPRESS=y"
             echo "CONFIG_ZSTD_COMPRESS=y"
             echo "CONFIG_CRYPTO_ZSTD=y"
-            # Performance Helio G37 (Gaming/Fluidez)
             echo "CONFIG_MTK_FPSGO_V3=y"
             echo "CONFIG_MTK_DISPLAY_BOOT_UP_HIGH_FPS=y"
             echo "CONFIG_MTK_MET_PLF=y"
@@ -179,7 +166,6 @@ jobs:
 
           # --- AJUSTES FINAIS NO DEFCONFIG ---
           
-          # Garante que flags antigas sejam substituídas e GPU monitorada
           sed -i 's/CONFIG_CC_OPTIMIZE_FOR_SIZE=y/CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_HZ_100=y/CONFIG_HZ_300=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
