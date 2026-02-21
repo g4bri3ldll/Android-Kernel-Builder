@@ -139,7 +139,7 @@ jobs:
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <2000>/min-residency-us = <1000>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/little-down-time = <750>/little-down-time = <1000>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/big-down-time = <750>/big-down-time = <1000>/g'
-
+          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/clock-frequency = <570000000>/clock-frequency = <670000000>/g'
           # 5. Configurações do Defconfig (Suas linhas originais)
           {
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
