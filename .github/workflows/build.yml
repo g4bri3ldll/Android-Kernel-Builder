@@ -115,81 +115,18 @@ jobs:
         run: |
           # --- Instalação do KernelSU Next ---
           rm -rf KernelSU drivers/kernelsu
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -
+          curl -LSs https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh > setup.sh
 
-          # --- Patches de Compatibilidade (Kernel 4.19) ---
-          
-          # 1. Correção Universal TWA_RESUME -> TWA_SIGNAL (Geral)
-          grep -rli 'TWA_RESUME' drivers/kernelsu/ | xargs -i@ sed -i 's/TWA_RESUME/TWA_SIGNAL/g' @
-
-          # 2. Injeção de Headers e Defs (Arquivos que usam task_work)
-          for file in drivers/kernelsu/allowlist.c drivers/kernelsu/setuid_hook.c drivers/kernelsu/kernel_umount.c drivers/kernelsu/supercalls.c drivers/kernelsu/su_mount_ns.c drivers/kernelsu/ksud.c; do
-            if [ -f "$file" ]; then
-              sed -i '1i #include <linux/sched/task.h>\n#include <linux/task_work.h>' $file
-              sed -i '1i #ifndef TWA_SIGNAL\n#define TWA_SIGNAL 1\n#endif' $file
-            fi
-          done
-
-          # 3. Fix do erro 'filter_count' (seccomp) no app_profile.c
+          # 1. Fix do erro 'filter_count' (seccomp) no app_profile.c
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
             sed -i 's/atomic_set(&.*seccomp.filter_count, 0);/\/\/ atomic_set(...);/g' drivers/kernelsu/app_profile.c
           fi
-          
-          # 4. Resolve o erro 'linux/pgtable.h' no sucompat.c
-          if [ -f "drivers/kernelsu/sucompat.c" ]; then
-            sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' drivers/kernelsu/sucompat.c
-          fi
-          
-          # 5. Fix do erro fsnotify no pkg_observer.c
-          if [ -f "drivers/kernelsu/pkg_observer.c" ]; then
-            echo "/* Disabled for Kernel 4.19 compatibility */" > drivers/kernelsu/pkg_observer.c
-            sed -i '/pkg_observer.o/d' drivers/kernelsu/Makefile
-          fi
 
-          # 6. Tradução de funções de memória (nofault) em toda a pasta
+          # 2. Tradução de funções de memória (nofault) em toda a pasta
           grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
 
-          # 7. Resolve o erro 'uapi/linux/mount.h' no su_mount_ns.c
-          if [ -f "drivers/kernelsu/su_mount_ns.c" ]; then
-            sed -i 's/<uapi\/linux\/mount.h>/<linux\/mount.h>/g' drivers/kernelsu/su_mount_ns.c
-          fi
-
-          # 8. Resolve o erro 'SECCOMP_ARCH_NATIVE_NR' no seccomp_cache.c
-          if [ -f "drivers/kernelsu/seccomp_cache.c" ]; then
-            sed -i '1i #ifndef SECCOMP_ARCH_NATIVE_NR\n#define SECCOMP_ARCH_NATIVE_NR 512\n#endif' drivers/kernelsu/seccomp_cache.c
-          fi
-
-          # 9. Desativa o file_wrapper.c (Incompatível com estruturas fs do 4.19)
-          if [ -f "drivers/kernelsu/file_wrapper.c" ]; then
-            echo "/* Disabled for Kernel 4.19 compatibility */" > drivers/kernelsu/file_wrapper.c
-            sed -i '/file_wrapper.o/d' drivers/kernelsu/Makefile
-          fi
-
-          # 10. Resolve o erro 'linux/pgtable.h' em TODOS os arquivos (Tradução para 4.19)
-          grep -rli '<linux/pgtable.h>' drivers/kernelsu/ | xargs -i@ sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' @
-
-          # 11. Tradução da API mmap_read para API antiga down_read (Kernel 4.19)
-          grep -rli 'mmap_read_trylock' drivers/kernelsu/ | xargs -i@ sed -i 's/mmap_read_trylock(\([^)]*\))/down_read_trylock(\&\1->mmap_sem)/g' @
-          grep -rli 'mmap_read_unlock' drivers/kernelsu/ | xargs -i@ sed -i 's/mmap_read_unlock(\([^)]*\))/up_read(\&\1->mmap_sem)/g' @
-          grep -rli 'mmap_read_lock' drivers/kernelsu/ | xargs -i@ sed -i 's/mmap_read_lock(\([^)]*\))/down_read(\&\1->mmap_sem)/g' @
-
-          # 12. Resolve erro selinux_cred (Tradução para estrutura de segurança do 4.19)
-          if [ -f "drivers/kernelsu/selinux/selinux.c" ]; then
-            sed -i '1i #define selinux_cred(cred) ((struct task_security_struct *)(cred)->security)' drivers/kernelsu/selinux/selinux.c
-          fi
-
-          # 13. Desativa a injeção de SEPolicy (Incompatível com policydb do 4.19)
-          if [ -d "drivers/kernelsu/selinux" ]; then
-            # Corrige o erro de digitação e desativa os arquivos problemáticos
-            echo "/* Disabled for Kernel 4.19 compatibility */" > drivers/kernelsu/selinux/sepolicy.c
-            # O arquivo sepolicy.h geralmente está na mesma pasta
-            if [ -f "drivers/kernelsu/selinux/sepolicy.h" ]; then
-               echo "/* Disabled */" > drivers/kernelsu/selinux/sepolicy.h
-            fi
-          fi
-          
           # --- Tuning de Performance (DTS/DTSI) ---
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
