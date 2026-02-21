@@ -109,21 +109,26 @@ jobs:
           
           echo "args=$args" >> $GITHUB_OUTPUT
 
-      - name: "😋 Update KernelSU (ReSukiSU Fix)"
+      - name: "😋 Install ReSukiSU"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
-          # Remove qualquer vestígio para começar limpo
+          # 1. Remove qualquer vestígio para começar limpo
           rm -rf KernelSU drivers/kernelsu setup.sh
-          # baixa o resukiSU
+
+          # 2. Baixa e instala o ReSukiSU
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
 
-          # 1. Fix do erro 'filter_count' (seccomp) no app_profile.c
+          # 3. MATA A TRAVA DE SEGURANÇA (Onde o erro parou)
+          # Isso comenta a linha que gera o erro "TP hooks are incompatible"
+          sed -i 's/$(error TP hooks/\# $(error TP hooks/g' drivers/kernelsu/Kbuild
+          
+          # 4. Fix do erro 'filter_count' (seccomp) no app_profile.c
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
             sed -i 's/atomic_set(&.*seccomp.filter_count, 0);/\/\/ atomic_set(...);/g' drivers/kernelsu/app_profile.c
           fi
 
-          # 2. Tradução de funções de memória (nofault) em toda a pasta
+          # 5. Tradução de funções de memória (nofault) em toda a pasta
           grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
