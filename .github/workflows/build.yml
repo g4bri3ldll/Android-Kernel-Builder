@@ -109,13 +109,14 @@ jobs:
           
           echo "args=$args" >> $GITHUB_OUTPUT
 
-      - name: "😋 Update KernelSU Next"
+      - name: "😋 Update KernelSU (ReSukiSU Fix)"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
-          # --- Instalação do KernelSU Next ---
-          rm -rf KernelSU drivers/kernelsu
-          curl -LSs https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh > setup.sh
+          # Remove qualquer vestígio para começar limpo
+          rm -rf KernelSU drivers/kernelsu setup.sh
+          # baixa o resukiSU
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
 
           # 1. Fix do erro 'filter_count' (seccomp) no app_profile.c
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
