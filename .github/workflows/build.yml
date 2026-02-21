@@ -113,33 +113,34 @@ jobs:
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
-          # 1. Remove qualquer vestígio para começar limpo
+          # 1. Limpeza e Fix do erro de log (seccomp_types.h)
           rm -rf KernelSU drivers/kernelsu setup.sh
+          mkdir -p include/linux/
+          touch include/linux/seccomp_types.h
 
-          # 2. Baixa e instala o ReSukiSU
+          # 2. Instalação (Comando original)
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
 
-          # 3. MATA A TRAVA DE SEGURANÇA (Onde o erro parou)
-          # Isso comenta a linha que gera o erro "TP hooks are incompatible"
+          # 3. Patches de Compatibilidade (Seus comandos originais)
           sed -i 's/$(error TP hooks/\# $(error TP hooks/g' drivers/kernelsu/Kbuild
           
-          # 4. Fix do erro 'filter_count' (seccomp) no app_profile.c
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
             sed -i 's/atomic_set(&.*seccomp.filter_count, 0);/\/\/ atomic_set(...);/g' drivers/kernelsu/app_profile.c
           fi
 
-          # 5. Tradução de funções de memória (nofault) em toda a pasta
           grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
 
-          # --- Tuning de Performance (DTS/DTSI) ---
+          # 4. Tuning de Performance (Seus comandos originais)
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <1200>/min-residency-us = <500>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <2000>/min-residency-us = <1000>/g'
+          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/little-down-time = <750>/little-down-time = <1000>/g'
+          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/big-down-time = <750>/big-down-time = <1000>/g'
 
-          # --- Configurações do Defconfig ---
+          # 5. Configurações do Defconfig (Suas linhas originais)
           {
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
             echo "CONFIG_KPROBES=y"
@@ -163,16 +164,22 @@ jobs:
             echo "CONFIG_SCHED_AUTOGROUP=y"
             echo "CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y"
             echo "CONFIG_MTK_COMBO_CHIP_CONSYS_6765=y"
-           
+            echo "CONFIG_ZEN_I_O_SCHEDULER=y"
+            echo "CONFIG_DEFAULT_ZEN=y"
+            echo "CONFIG_ANDROID_LOW_MEMORY_KILLER=y"
+            echo "CONFIG_LSWAP=y"
+            echo "CONFIG_ZSMALLOC=y"
+            echo "CONFIG_PGTABLE_MAPPING=y"
+            echo "CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y"
+            echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y"
+            echo "CONFIG_CPU_FREQ_GOV_POWERSAVE=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
-          # --- Ajustes de Substituição Final ---
+          # 6. Substituições Finais (Seus comandos originais)
           sed -i 's/CONFIG_CC_OPTIMIZE_FOR_SIZE=y/CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_HZ_100=y/CONFIG_HZ_300=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_MTK_MONITOR_CHIPS_Gpu=m/CONFIG_MTK_MONITOR_CHIPS_Gpu=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-
-          cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
