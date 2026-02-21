@@ -163,6 +163,7 @@ jobs:
             echo "CONFIG_SCHED_AUTOGROUP=y"
             echo "CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y"
             echo "CONFIG_MTK_COMBO_CHIP_CONSYS_6765=y"
+           
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           # --- Ajustes de Substituição Final ---
