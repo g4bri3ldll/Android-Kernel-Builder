@@ -139,7 +139,6 @@ jobs:
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/min-residency-us = <2000>/min-residency-us = <1000>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/little-down-time = <750>/little-down-time = <1000>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/big-down-time = <750>/big-down-time = <1000>/g'
-          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/clock-frequency = <570000000>/clock-frequency = <670000000>/g'
           # 5. Configurações do Defconfig (Suas linhas originais)
           {
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
@@ -173,13 +172,8 @@ jobs:
             echo "CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y"
             echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y"
             echo "CONFIG_CPU_FREQ_GOV_POWERSAVE=y"
+            echo "CONFIG_MTK_MONITOR_CHIPS_Gpu=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-
-          # 6. Substituições Finais (Seus comandos originais)
-          sed -i 's/CONFIG_CC_OPTIMIZE_FOR_SIZE=y/CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          sed -i 's/CONFIG_HZ_100=y/CONFIG_HZ_300=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          sed -i 's/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y/CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          sed -i 's/CONFIG_MTK_MONITOR_CHIPS_Gpu=m/CONFIG_MTK_MONITOR_CHIPS_Gpu=y/g' ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
