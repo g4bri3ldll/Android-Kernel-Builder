@@ -135,8 +135,6 @@ jobs:
           # --- 4. Tuning de Performance (Apenas o que impacta o toque) ---
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
-          # GPU Boost PowerVR (O "pulo do gato" para jogos e UI)
-          find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" | xargs sed -i 's/clock-frequency = <570000000>/clock-frequency = <670000000>/g'
 
           # --- 5. Defconfig Minimalista (Root + Fluidez) ---
           {
