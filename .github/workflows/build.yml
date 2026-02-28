@@ -113,15 +113,11 @@ jobs:
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
-          # 1. Limpeza e Fix do erro de log (seccomp_types.h)
-          rm -rf KernelSU drivers/kernelsu setup.sh
-          mkdir -p include/linux/
-          touch include/linux/seccomp_types.h
 
-          # 2. Instalação (Comando original)
+          # 1. Instalação (Comando original)
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
 
-          # 3. Patches de Compatibilidade (Seus comandos originais)
+          # 2. Patches de Compatibilidade (Seus comandos originais)
           sed -i 's/$(error TP hooks/\# $(error TP hooks/g' drivers/kernelsu/Kbuild
           
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
@@ -132,11 +128,11 @@ jobs:
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
 
-          # --- 4. Tuning de Performance (Apenas o que impacta o toque) ---
+          # --- 3. Tuning de Performance (Apenas o que impacta o toque) ---
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/little-rise-time = <1000>/little-rise-time = <200>/g'
           find arch/arm64/boot/dts/mediatek/ -name "mt6765.dts" -o -name "mt6765.dtsi" | xargs sed -i 's/big-rise-time = <1000>/big-rise-time = <200>/g'
 
-          # --- 5. Defconfig Minimalista (Root + Fluidez) ---
+          # --- 4. Defconfig Minimalista (Root + Fluidez) ---
           {
             # Dependências Obrigatórias do ReSukiSU/KSU
             echo "CONFIG_KALLSYMS=y"
