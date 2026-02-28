@@ -160,7 +160,6 @@ jobs:
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
           args: ${{ steps.generate-args.outputs.args }}
-          JOURNEY_BUILD_SCRIPT: "yes"
         run: |
           echo "PATH Variable: $PATH"
           make ${{ env.args }} ${{ env.DEFCONFIG_NAME }}
@@ -171,6 +170,7 @@ jobs:
           args: ${{ steps.generate-args.outputs.args }}
           KBUILD_BUILD_USER: "g4bri3ldll"
           KBUILD_BUILD_HOST: "ReSukiSU-Lab"
+          JOURNEY_BUILD_SCRIPT: "yes"
         run: |
           # Remove o sufixo -dirty para o nome ficar limpo
           export LOCALVERSION=""
