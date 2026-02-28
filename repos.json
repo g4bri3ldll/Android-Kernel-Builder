@@ -1,11 +1,11 @@
 [  {
     "kernelSource": {
       "name": "hawaiip",
-      "repo": "https://github.com/g4bri3ldll/motorola_source_code_hawaiip",
-      "branch": "main",
+      "repo": "https://github.com/MotorolaMobilityLLC/kernel-mtk",
+      "branch": "android-12-release-STAS32.79-77-28-63-9",
       "device": "p410ae"
     },
-    "withKernelSU": true,
+    "withKernelSU": false,
     "toolchains": [
       {
         "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",
