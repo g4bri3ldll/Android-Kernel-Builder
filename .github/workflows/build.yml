@@ -223,8 +223,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dtb(${{ env.kernelDevice }}-${{ env.kernelName }}-${{ env.kernelBranch }})
-          path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/dtb
-          if-no-files-found: ignore
+          path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/dts/mediatek/*.dtb
+          if-no-files-found: warn
           retention-days: 7
 
       - name: "❤️ Upload dtbo.img"
