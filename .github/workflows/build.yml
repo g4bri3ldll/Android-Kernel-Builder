@@ -160,8 +160,6 @@ jobs:
             echo "CONFIG_HZ=450"
             echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y"
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
-            echo "CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y"
-            echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y"
             
             # I/O e RAM (Para abrir apps rápido e não fechar os de fundo)
             echo "CONFIG_MQ_IOSCHED_DEADLINE=y"
@@ -170,7 +168,6 @@ jobs:
             echo "CONFIG_PGTABLE_MAPPING=y"
 
             # MediaTek Gaming/UI Boost
-            echo "CONFIG_IRQ_TIME_ACCOUNTING=y"
             echo "CONFIG_MTK_DRAMC_LOW_POWER_REDUCE=n"
             echo "CONFIG_MTK_FPSGO_V3=y"
             echo "CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y"
