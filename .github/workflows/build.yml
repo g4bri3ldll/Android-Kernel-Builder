@@ -181,6 +181,8 @@ jobs:
             echo "CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y"
             echo "CONFIG_MTK_MONITOR_CHIPS_Gpu=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+
+          sed -i 's/-Werror-/-Wno-error-/g' kernel/sched/Makefile
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
