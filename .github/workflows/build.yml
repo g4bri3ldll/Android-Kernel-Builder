@@ -160,6 +160,7 @@ jobs:
             echo "CONFIG_HZ=450"
             echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y"
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
+            echo "CONFIG_SCHED_WALT=y"
             
             # I/O e RAM (Para abrir apps rápido e não fechar os de fundo)
             echo "CONFIG_MQ_IOSCHED_DEADLINE=y"
