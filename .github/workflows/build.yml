@@ -193,7 +193,7 @@ jobs:
             echo "CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y"
             echo "CONFIG_MTK_BOOST_GPU_FREQ=y"
             echo "CONFIG_MTK_MONITOR_CHIPS_Gpu=y"
-            echo "CONFIG_RELR=y"
+            # echo "CONFIG_RELR=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           # --- CORREÇÃO DE ERROS DE COMPILAÇÃO ---
