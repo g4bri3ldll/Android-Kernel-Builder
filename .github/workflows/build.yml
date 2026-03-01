@@ -162,17 +162,7 @@ jobs:
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
             echo "CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y"
             echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y"
-            echo "CONFIG_DEFAULT_USE_ENERGY_AWARE=y"
-            echo "CONFIG_SCHED_WALT=y"
-            echo "CONFIG_HUGETLBFS=y"
-            echo "CONFIG_HUGETLB_PAGE=y"
-            echo "CONFIG_DEBUG_KMEMLEAK=n"
-            echo "CONFIG_SLUB_DEBUG=n"
-            echo "CONFIG_PROFILING=n"
-            echo "CONFIG_PROCESS_RECLAIM=y"
-            echo "CONFIG_ADVISE_SYSCALLS=y"
-            echo "CONFIG_ARM_MTK_BW_LEVEL=y"
-           
+            
             # I/O e RAM (Para abrir apps rápido e não fechar os de fundo)
             echo "CONFIG_MQ_IOSCHED_DEADLINE=y"
             echo "CONFIG_DEFAULT_IOSCHED=\"mq-deadline\""
