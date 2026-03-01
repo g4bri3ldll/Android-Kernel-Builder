@@ -167,7 +167,7 @@ jobs:
             echo "CONFIG_IRQ_TIME_ACCOUNTING=y"
             echo "CONFIG_SCHED_WALT=y"
             echo "CONFIG_UCLAMP_TASK=y"
-            echo "CONFIG_RELR=y
+            echo "CONFIG_RELR=y"
 
             # I/O e RAM (Para abrir apps rápido e não fechar os de fundo)
             echo "CONFIG_MQ_IOSCHED_DEADLINE=y"
