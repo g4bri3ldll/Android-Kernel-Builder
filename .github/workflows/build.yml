@@ -140,7 +140,7 @@ jobs:
           sed -i 's/entry-latency-us = <600>/entry-latency-us = <350>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/exit-latency-us = <600>/exit-latency-us = <350>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/min-residency-us = <1200>/min-residency-us = <500>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
-          sed -i 's/opp-hz = /bits/ 64 <300000000>/opp-hz = /bits/ 64 <459000000>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
+          sed -i 's|opp-hz = /bits/ 64 <300000000>|opp-hz = /bits/ 64 <459000000>|g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/entry-latency-us = <800>/entry-latency-us = <400>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/exit-latency-us = <1000>/exit-latency-us = <500>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/min-residency-us = <2000>/min-residency-us = <900>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
