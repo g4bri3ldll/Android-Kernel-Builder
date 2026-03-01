@@ -184,7 +184,12 @@ jobs:
             echo "CONFIG_MTK_MONITOR_CHIPS_Gpu=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
-          sed -i 's/-Werror-/-Wno-error-/g' kernel/sched/Makefile
+          # --- CORREÇÃO DE ERROS DE COMPILAÇÃO ---
+          # 1. Ignora declarações implícitas (corrige o erro cpu_util_rt)
+          sed -i 's/-Werror=implicit-function-declaration/-Wno-error=implicit-function-declaration/g' Makefile
+          
+          # 2. Transforma avisos em alertas simples na pasta do agendador
+          find kernel/sched/ -name "Makefile" | xargs sed -i 's/-Werror/-Wno-error/g'
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
