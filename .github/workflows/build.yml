@@ -162,20 +162,15 @@ jobs:
             echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
             echo "CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y"
             echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y"
-            echo "CONFIG_PREEMPT_COUNT=y"
-            echo "CONFIG_SCHED_AUTOGROUP=y"
-            echo "CONFIG_SCHED_TUNE=y"
             echo "CONFIG_DEFAULT_USE_ENERGY_AWARE=y"
-            echo "CONFIG_SCHED_CORE_CTL=y"
+            echo "CONFIG_SCHED_WALT=y"
             echo "CONFIG_HUGETLBFS=y"
             echo "CONFIG_HUGETLB_PAGE=y"
-            echo "CONFIG_SCHEDSTATS=n"
             echo "CONFIG_DEBUG_KMEMLEAK=n"
             echo "CONFIG_SLUB_DEBUG=n"
             echo "CONFIG_PROFILING=n"
             echo "CONFIG_PROCESS_RECLAIM=y"
             echo "CONFIG_ADVISE_SYSCALLS=y"
-            echo "CONFIG_DEVFREQ_GOV_PERFORMANCE=y"
             echo "CONFIG_ARM_MTK_BW_LEVEL=y"
            
             # I/O e RAM (Para abrir apps rápido e não fechar os de fundo)
@@ -185,7 +180,6 @@ jobs:
             echo "CONFIG_PGTABLE_MAPPING=y"
 
             # MediaTek Gaming/UI Boost
-            echo "CONFIG_CPU_IDLE_GOV_TEO=y"
             echo "CONFIG_IRQ_TIME_ACCOUNTING=y"
             echo "CONFIG_MTK_DRAMC_LOW_POWER_REDUCE=n"
             echo "CONFIG_MTK_FPSGO_V3=y"
