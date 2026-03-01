@@ -159,7 +159,7 @@ jobs:
            
             # I/O e RAM (Para abrir apps rápido e não fechar os de fundo)
             echo "CONFIG_MQ_IOSCHED_DEADLINE=y"
-            echo "CONFIG_DEFAULT_IOSCHED=\"mq-deadline\"
+            echo "CONFIG_DEFAULT_IOSCHED=\"mq-deadline\""
             echo "CONFIG_ZSMALLOC=y"
             echo "CONFIG_PGTABLE_MAPPING=y"
 
