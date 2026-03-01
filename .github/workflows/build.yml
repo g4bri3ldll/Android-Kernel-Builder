@@ -176,7 +176,6 @@ jobs:
             echo "CONFIG_MTK_FPSGO_V3=y"
             echo "CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y"
             echo "CONFIG_MTK_MONITOR_CHIPS_Gpu=y"
-            echo "CONFIG_RELR=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           
       - name: "👍 Make defconfig"
