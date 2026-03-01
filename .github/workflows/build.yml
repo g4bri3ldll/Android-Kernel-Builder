@@ -155,14 +155,8 @@ jobs:
             echo "CONFIG_HZ_300=y"
             echo "CONFIG_HZ=300"
             echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y"
-            echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n"
-            echo "CONFIG_SCHED_AUTOGROUP=y"
-            echo "CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y"
-            echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y"
-            echo "CONFIG_PREEMPT_COUNT=y"
-            echo "CONFIG_IRQ_TIME_ACCOUNTING=y"
-            echo "CONFIG_RELR=y"
-
+            echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n""
+           
             # I/O e RAM (Para abrir apps rápido e não fechar os de fundo)
             echo "CONFIG_MQ_IOSCHED_DEADLINE=y"
             echo "CONFIG_DEFAULT_IOSCHED=\"mq-deadline\""
