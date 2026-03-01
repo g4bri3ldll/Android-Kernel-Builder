@@ -164,7 +164,6 @@ jobs:
             echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y"
             echo "CONFIG_PREEMPT_COUNT=y"
             echo "CONFIG_SCHED_AUTOGROUP=y"
-            echo "CONFIG_SCHED_WALT=y"
             echo "CONFIG_SCHED_TUNE=y"
             echo "CONFIG_DEFAULT_USE_ENERGY_AWARE=y"
             echo "CONFIG_SCHED_CORE_CTL=y"
