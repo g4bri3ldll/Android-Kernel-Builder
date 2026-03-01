@@ -113,6 +113,8 @@ jobs:
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         if: ${{ env.withKernelSU == 'true' }}
         run: |
+          mkdir -p include/linux/
+          touch include/linux/seccomp_types.h
 
           # 1. Instalação (Comando original)
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
