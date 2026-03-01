@@ -165,6 +165,7 @@ jobs:
             echo "CONFIG_DEFAULT_USE_ENERGY_AWARE=y"
             echo "CONFIG_PREEMPT_COUNT=y"
             echo "CONFIG_SCHED_AUTOGROUP=y"
+            echo "CONFIG_RELR=y"
             
             # I/O e RAM (Para abrir apps rápido e não fechar os de fundo)
             echo "CONFIG_MQ_IOSCHED_DEADLINE=y"
