@@ -134,15 +134,17 @@ jobs:
           sed -i 's/big-rise-time = <1000>/big-rise-time = <400>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/little-down-time = <750>/little-down-time = <1200>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/big-down-time = <750>/big-down-time = <1200>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
-
+          sed -i 's/opp-microvolt = <600000>/opp-microvolt = <650000>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/entry-latency-us = <600>/entry-latency-us = <350>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/exit-latency-us = <600>/exit-latency-us = <350>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/min-residency-us = <1200>/min-residency-us = <500>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
-
+          sed -i 's/opp-hz = /bits/ 64 <300000000>/opp-hz = /bits/ 64 <459000000>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/entry-latency-us = <800>/entry-latency-us = <400>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/exit-latency-us = <1000>/exit-latency-us = <500>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
           sed -i 's/min-residency-us = <2000>/min-residency-us = <900>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
-
+          sed -i 's/capacity-dmips-mhz = <1024>/capacity-dmips-mhz = <1048>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
+          sed -i 's/capacity-dmips-mhz = <801>/capacity-dmips-mhz = <850>/g' arch/arm64/boot/dts/mediatek/mt6765.dts
+          
           # --- 4. Defconfig Minimalista (Root + Fluidez) ---
           {
             # Dependências Obrigatórias do ReSukiSU/KSU
@@ -161,6 +163,8 @@ jobs:
             echo "CONFIG_PREEMPT_COUNT=y"
             echo "CONFIG_SCHED_AUTOGROUP=y"
             echo "CONFIG_SCHED_WALT=y"
+            echo "CONFIG_SCHED_TUNE=y"
+            echo "CONFIG_DEFAULT_USE_ENERGY_AWARE=y"
             echo "CONFIG_SCHED_CORE_CTL=y"
             echo "CONFIG_HUGETLBFS=y"
             echo "CONFIG_HUGETLB_PAGE=y"
@@ -168,6 +172,10 @@ jobs:
             echo "CONFIG_DEBUG_KMEMLEAK=n"
             echo "CONFIG_SLUB_DEBUG=n"
             echo "CONFIG_PROFILING=n"
+            echo "CONFIG_PROCESS_RECLAIM=y"
+            echo "CONFIG_ADVISE_SYSCALLS=y"
+            echo "CONFIG_DEVFREQ_GOV_PERFORMANCE=y"
+            echo "CONFIG_ARM_MTK_BW_LEVEL=y"
            
             # I/O e RAM (Para abrir apps rápido e não fechar os de fundo)
             echo "CONFIG_MQ_IOSCHED_DEADLINE=y"
@@ -181,6 +189,7 @@ jobs:
             echo "CONFIG_MTK_DRAMC_LOW_POWER_REDUCE=n"
             echo "CONFIG_MTK_FPSGO_V3=y"
             echo "CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y"
+            echo "CONFIG_MTK_BOOST_GPU_FREQ=y"
             echo "CONFIG_MTK_MONITOR_CHIPS_Gpu=y"
           } >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
