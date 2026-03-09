@@ -121,7 +121,7 @@ jobs:
           mkdir -p include/linux/
           touch include/linux/seccomp_types.h
           
-          https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
 
           sed -i 's/$(error TP hooks/\# $(error TP hooks/g' drivers/kernelsu/Kbuild
           if [ -f "drivers/kernelsu/app_profile.c" ]; then
