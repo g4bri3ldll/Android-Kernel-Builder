@@ -131,7 +131,9 @@ jobs:
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
           grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
 
-          s# 1. Correção Global (TWA, nofault)
+          # No passo "Update KernelSU", após o curl:
+
+          # 1. Correção Global (TWA, nofault)
           grep -rli 'TWA_RESUME' drivers/kernelsu/ | xargs -i@ sed -i 's/TWA_RESUME/0/g' @
           grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
           grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
@@ -140,21 +142,23 @@ jobs:
           # 2. Headers e Incompatibilidades de Arquivo
           sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' drivers/kernelsu/sucompat.c
           sed -i 's/<uapi\/linux\/mount.h>/<linux\/mount.h>/g' drivers/kernelsu/su_mount_ns.c
+          # Adição de headers com escape correto para o \n
           sed -i '1i #include <linux/sched.h>\n#include <linux/sched/task.h>' drivers/kernelsu/allowlist.c
 
-          # 3. "Cegar" o file_wrapper.c para o 4.19 (Solução Definitiva)
-          # Em vez de sed linha por linha, vamos desativar as funções que usam APIs novas
+          # 3. "Cegar" o file_wrapper.c para o 4.19
           sed -i 's/p->ops.iopoll =/\/\/ p->ops.iopoll =/g' drivers/kernelsu/file_wrapper.c
           sed -i 's/p->ops.remap_file_range =/\/\/ p->ops.remap_file_range =/g' drivers/kernelsu/file_wrapper.c
           sed -i 's/error = security_inode_init_security_anon/\/\/ error = security_inode_init_security_anon/g' drivers/kernelsu/file_wrapper.c
+          # Protegendo o parêntese com aspas simples para o shell não bugar
           sed -i 's/struct inode_security_struct \*wrapper_sec = selinux_inode/\/\/ /g' drivers/kernelsu/file_wrapper.c
 
           # 4. Ajustes finos (clone3, seccomp, pkg_observer)
           sed -i 's/ksu_seccomp_allow_cache/\/\/ ksu_seccomp_allow_cache/g' drivers/kernelsu/setuid_hook.c
+          # Usando aspas simples para proteger o #ifdef e os parênteses
           sed -i 's/case __NR_clone3:/#ifdef __NR_clone3\n    case __NR_clone3:\n#endif/g' drivers/kernelsu/syscall_hook_manager.c
           sed -i 's/id == __NR_clone3/id == -1/g' drivers/kernelsu/syscall_hook_manager.c
 
-          # Desativa pkg_observer completamente (causa erro de fsnotify no 4.19)
+          # 5. Desativar pkg_observer
           echo "int ksu_pkg_observer_init() { return 0; }" > drivers/kernelsu/pkg_observer.c
           echo "void ksu_pkg_observer_exit() { }" >> drivers/kernelsu/pkg_observer.c
           
