@@ -122,13 +122,6 @@ jobs:
           touch include/linux/seccomp_types.h
           
           curl -LSs https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/legacy/kernel/setup.sh | bash -s legacy
-          sed -i 's/$(error TP hooks/\# $(error TP hooks/g' drivers/kernelsu/Kbuild
-          if [ -f "drivers/kernelsu/app_profile.c" ]; then
-            sed -i 's/atomic_set(&.*seccomp.filter_count, 0);/\/\/ atomic_set(...);/g' drivers/kernelsu/app_profile.c
-          fi
-          grep -rli 'strncpy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g' @
-          grep -rli 'copy_from_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_from_user_nofault/copy_from_user/g' @
-          grep -rli 'copy_to_user_nofault' drivers/kernelsu/ | xargs -i@ sed -i 's/copy_to_user_nofault/copy_to_user/g' @
           
           echo "CONFIG_HAVE_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KPROBE_EVENTS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
