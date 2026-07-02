@@ -143,6 +143,16 @@ jobs:
           echo "PATH Variable: $PATH"
           make ${args}
 
+      - name: "🔍 Check Hook Method (Tracepoint vs Kprobes)"
+        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
+        run: |
+          echo "=== Verificando ganchos no vmlinux ==="
+          if [ -f "./vmlinux" ]; then
+            strings ./vmlinux | grep -E "ksu_kprobe|ksu_tracepoint" || echo "Nenhum símbolo específico encontrado, mas compilou!"
+          else
+            echo "Arquivo vmlinux não encontrado na raiz!"
+          fi    
+
       - name: "💛 Upload Image"
         uses: actions/upload-artifact@v4
         with:
