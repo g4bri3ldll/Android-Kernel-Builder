@@ -119,9 +119,8 @@ jobs:
         if: ${{ env.withKernelSU == 'true' }}
         run: |
 
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
 
-          echo "CONFIG_KSU=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KSU_MANUAL_HOOK=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_TMPFS_XATTR=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KALLSYMS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
@@ -129,8 +128,6 @@ jobs:
           echo "CONFIG_HZ_300=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_HZ=300" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_MTK_PERFMGR_TOUCH_BOOST=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_NET_ACT_BPF=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_BPF_STREAM_PARSER=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
@@ -147,16 +144,6 @@ jobs:
         run: |
           echo "PATH Variable: $PATH"
           make ${args}
-
-      - name: "🔍 Check Hook Method (Tracepoint vs Kprobes)"
-        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
-        run: |
-          echo "=== Verificando ganchos no vmlinux ==="
-          if [ -f "./vmlinux" ]; then
-            strings ./vmlinux | grep -E "ksu_kprobe|ksu_tracepoint" || echo "Nenhum símbolo específico encontrado, mas compilou!"
-          else
-            echo "Arquivo vmlinux não encontrado na raiz!"
-          fi    
 
       - name: "💛 Upload Image"
         uses: actions/upload-artifact@v4
