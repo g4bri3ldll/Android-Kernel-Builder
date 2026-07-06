@@ -137,6 +137,9 @@ jobs:
           echo "CONFIG_SUSFS_SUS_KSTAT=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_SUSFS_SPOOF_UNAME=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo "# CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK is not set" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo "# CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK is not set" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo "# CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK is not set" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
