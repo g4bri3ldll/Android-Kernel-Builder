@@ -125,24 +125,9 @@ jobs:
           echo "CONFIG_TMPFS_XATTR=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KALLSYMS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KALLSYMS_ALL=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_HZ_300=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_HZ=300" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_MTK_PERFMGR_TOUCH_BOOST=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_NET_ACT_BPF=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_BPF_STREAM_PARSER=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-
-      - name: Corrigir ganchos de energia do fair.c
-        run: |
-          # 1. Neutraliza o loop de perf_order_domains comentando a linha inicial e final do bloco
-          sed -i 's/list_for_each(pos, \&perf_order_domains)/ \/\* list_for_each(pos, \&perf_order_domains)/' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
-          
-          # 2. Fecha o comentário logo após o loop do cpumask que quebrava o tipo
-          sed -i 's/for_each_cpu(i, \&domain->possible_cpus)/for_each_cpu(i, \&domain->possible_cpus) \*\//' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
-          
-          # 3. Cria um stub simples para a função pod_is_ready não dar erro de falta de declaração
-          sed -i 's/if (!pod_is_ready())/if (0) \/\/ (!pod_is_ready())/' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
