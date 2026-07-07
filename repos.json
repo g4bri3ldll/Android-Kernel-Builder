@@ -2,7 +2,7 @@
     "kernelSource": {
       "name": "hawaiip",
       "repo": "https://github.com/g4bri3ldll/motorola_source_code_hawaiip",
-      "branch": "manual_hook_resukisu",
+      "branch": "manual_hook_resukisu_performance",
       "device": "p410ae"
     },
     "withKernelSU": true,
