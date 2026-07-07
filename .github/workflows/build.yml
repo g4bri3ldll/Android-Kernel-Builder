@@ -131,12 +131,10 @@ jobs:
           echo "CONFIG_NET_ACT_BPF=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_BPF_STREAM_PARSER=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "# CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL is not set" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo "# CONFIG_CPU_FREQ_GOV_SCHEDUTIL is not set" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo "# CONFIG_ENERGY_MODEL is not set" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-
-      - name: Corrigir erro de declaração do cpu_util_rt
-        run: |
-          find . -name "debug.c" -path "*/kernel/sched/extension/*" -exec sed -i '1,10 { /#include/!b; :a; n; /#include/ba; i\extern unsigned long cpu_util_rt(struct rq *rq); \n }' {} +
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
