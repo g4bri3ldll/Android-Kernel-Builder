@@ -136,7 +136,7 @@ jobs:
 
       - name: Corrigir erro de declaração do cpu_util_rt
         run: |
-          sed -i '1s/^/extern unsigned long cpu_util_rt(struct rq *rq);\n/' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/extension/debug.c
+          find . -name "debug.c" -path "*/kernel/sched/extension/*" -exec sed -i '1s/^/#include "..\/sched.h"\n/' {} +
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
