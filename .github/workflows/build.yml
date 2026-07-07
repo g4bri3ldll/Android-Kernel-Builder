@@ -132,6 +132,10 @@ jobs:
           echo "CONFIG_BPF_STREAM_PARSER=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+
+      - name: Corrigir ganchos de energia do fair.c
+        run: |
+          sed -i '1s/^/#define pod_is_ready() (0)\n#define perf_order_domains (0)\nstruct perf_order_domain { int dummy; };\n/' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
