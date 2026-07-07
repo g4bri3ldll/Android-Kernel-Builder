@@ -135,7 +135,11 @@ jobs:
 
       - name: Corrigir ganchos de energia do fair.c
         run: |
-          sed -i '1s/^/#define pod_is_ready() (0)\nstruct perf_order_domain { struct list_head node; unsigned long possible_cpus; };\nstruct list_head perf_order_domains = { \&perf_order_domains, \&perf_order_domains };\n/' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
+          sed -i 's/bool pod_is_ready(void)/bool pod_is_ready(void) { return false; }\nbool pod_is_ready_old(void)/g' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
+          
+          # Desativa o loop interno que quebra o build usando comentários em bloco do C
+          sed -i '/if (!pod_is_ready())/,/list_for_each(pos, &perf_order_domains)/ { /list_for_each/i\/* Desativado pelo Actions devido ao governor performance\n/ }' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
+          sed -i '/for_each_cpu(i, &domain->possible_cpus)/,/}/ { /}/a\*/\n/ }' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
