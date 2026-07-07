@@ -133,6 +133,11 @@ jobs:
           echo "# CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL is not set" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_CPU_FREQ_GOV_PERFORMANCE=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+
+      - name: Corrigir erro de declaração do cpu_util_rt
+        run: |
+          # Injeta a declaração externa da função bem no começo do arquivo debug.c
+          sed -i '1s/^/extern unsigned long cpu_util_rt(struct rq *rq);\n/' kernel/sched/extension/debug.c
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
