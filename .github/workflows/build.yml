@@ -135,7 +135,7 @@ jobs:
 
       - name: Corrigir ganchos de energia do fair.c
         run: |
-          sed -i '1s/^/#define pod_is_ready() (0)\n#define perf_order_domains (0)\nstruct perf_order_domain { int dummy; };\n/' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
+          sed -i '1s/^/#define pod_is_ready() (0)\nstruct perf_order_domain { struct list_head node; unsigned long possible_cpus; };\nstruct list_head perf_order_domains = { \&perf_order_domains, \&perf_order_domains };\n/' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
