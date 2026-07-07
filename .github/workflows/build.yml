@@ -136,8 +136,7 @@ jobs:
 
       - name: Corrigir erro de declaração do cpu_util_rt
         run: |
-          # Injeta a declaração externa da função bem no começo do arquivo debug.c
-          sed -i '1s/^/extern unsigned long cpu_util_rt(struct rq *rq);\n/' kernel/sched/extension/debug.c
+          sed -i '1s/^/extern unsigned long cpu_util_rt(struct rq *rq);\n/' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/extension/debug.c
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
