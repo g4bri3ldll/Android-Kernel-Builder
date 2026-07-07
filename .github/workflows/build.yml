@@ -135,11 +135,14 @@ jobs:
 
       - name: Corrigir ganchos de energia do fair.c
         run: |
-          sed -i 's/bool pod_is_ready(void)/bool pod_is_ready(void) { return false; }\nbool pod_is_ready_old(void)/g' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
+          # 1. Neutraliza o loop de perf_order_domains comentando a linha inicial e final do bloco
+          sed -i 's/list_for_each(pos, \&perf_order_domains)/ \/\* list_for_each(pos, \&perf_order_domains)/' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
           
-          # Desativa o loop interno que quebra o build usando comentários em bloco do C
-          sed -i '/if (!pod_is_ready())/,/list_for_each(pos, &perf_order_domains)/ { /list_for_each/i\/* Desativado pelo Actions devido ao governor performance\n/ }' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
-          sed -i '/for_each_cpu(i, &domain->possible_cpus)/,/}/ { /}/a\*/\n/ }' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
+          # 2. Fecha o comentário logo após o loop do cpumask que quebrava o tipo
+          sed -i 's/for_each_cpu(i, \&domain->possible_cpus)/for_each_cpu(i, \&domain->possible_cpus) \*\//' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
+          
+          # 3. Cria um stub simples para a função pod_is_ready não dar erro de falta de declaração
+          sed -i 's/if (!pod_is_ready())/if (0) \/\/ (!pod_is_ready())/' ./${{ env.kernelDir }}/${{ env.kernelName }}/kernel/sched/fair.c
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
