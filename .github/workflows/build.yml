@@ -121,7 +121,7 @@ jobs:
 
           curl -LSs "https://raw.githubusercontent.com/g4bri3ldll/KernelSU-Next/legacy/kernel/setup.sh" | bash -s legacy
 
-          echo -e '#include <linux/types.h>\nvoid ksud_selinux_hide_init(void) {}\nvoid ksud_selinux_hide_exit(void) {}' > ./drivers/kernelsu/feature/selinux_hide.c
+          echo -e '#include <linux/types.h>\nvoid ksu_selinux_hide_init(void) {}\nvoid ksu_selinux_hide_exit(void) {}' > ./drivers/kernelsu/feature/selinux_hide.c
           echo "CONFIG_KSU=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KSU_MANUAL_HOOK=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_HAVE_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
