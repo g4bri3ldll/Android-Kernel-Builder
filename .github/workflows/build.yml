@@ -130,14 +130,6 @@ jobs:
           echo "CONFIG_MTK_PERF_TOUCH_BOOST=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_HZ_300=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_HZ=300" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KSU_SUSFS=y" >> ./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> ./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> ./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> ./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y" >> ./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> ./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSUM=y" >> ./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> ./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}
           
       - name: ⚙️ Setup and Apply SUSFS Patches
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
