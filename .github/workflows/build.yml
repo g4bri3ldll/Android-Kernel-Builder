@@ -147,14 +147,12 @@ jobs:
 
       - name: "🧩 Setup and Apply SUSFS"
         run: |
-          # 1. Navegar para a diretoria real do kernel (se existir uma subpasta)
-          if [ -d "${{ env.kernelName }}" ]; then
-            cd "${{ env.kernelName }}"
-          elif [ -d "motorola_source_code_hawaiip" ]; then
+          # 1. Entra na pasta do código-fonte do kernel (se houver subpasta)
+          if [ -d "motorola_source_code_hawaiip" ]; then
             cd motorola_source_code_hawaiip
           fi
 
-          # 2. Criar as pastas de destino
+          # 2. Criar pastas necessárias na raiz do kernel
           mkdir -p fs include/linux
 
           echo "===> Baixando arquivos de suporte do SUSFS 4.19..."
@@ -168,24 +166,28 @@ jobs:
           curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/50_add_susfs_in_kernel-4.19.patch" -o susfs_kernel.patch
           curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" -o susfs_ksu.patch
 
-          echo "===> Aplicando patch no KernelSU..."
-          KSU_DIR=""
-          if [ -d "drivers/kernelsu" ]; then
-            KSU_DIR="drivers/kernelsu"
-          elif [ -d "KernelSU" ]; then
-            KSU_DIR="KernelSU"
+          echo "===> Localizando diretório interno 'kernel' do ReSukiSU/KernelSU..."
+          KSU_KERNEL_DIR=""
+          if [ -d "drivers/kernelsu/kernel" ]; then
+            KSU_KERNEL_DIR="drivers/kernelsu/kernel"
+          elif [ -d "KernelSU/kernel" ]; then
+            KSU_KERNEL_DIR="KernelSU/kernel"
+          elif [ -d "drivers/staging/kernelsu/kernel" ]; then
+            KSU_KERNEL_DIR="drivers/staging/kernelsu/kernel"
           fi
 
-          if [ -n "$KSU_DIR" ]; then
-            patch -p1 --forward --batch -d "$KSU_DIR" < susfs_ksu.patch || true
+          if [ -n "$KSU_KERNEL_DIR" ]; then
+            echo "Pasta interna encontrada em: $KSU_KERNEL_DIR"
+            # O -p2 remove 'a/kernel/' do diff e aplica diretamente dentro da pasta $KSU_KERNEL_DIR
+            patch -p2 --forward --batch -d "$KSU_KERNEL_DIR" < susfs_ksu.patch || true
           else
+            echo "Aviso: Pasta interna do ReSukiSU/KernelSU não encontrada. Aplicando de forma genérica..."
             patch -p1 --forward --batch < susfs_ksu.patch || true
           fi
 
-          echo "===> Aplicando patch principal do SUSFS no Kernel..."
+          echo "===> Aplicando patch do SUSFS no Kernel da Motorola..."
           patch -p1 --forward --batch < susfs_kernel.patch || {
-            echo "Aviso: Algumas partes do patch foram rejeitadas."
-            echo "Arquivos com conflito (.rej):"
+            echo "Aviso: Algumas partes do patch do Kernel foram ignoradas/rejeitadas."
             find . -name "*.rej"
           }
           
