@@ -144,11 +144,9 @@ jobs:
         run: |
           echo "===> 1. Clonando repositório do susfs4ksu (branch kernel-4.19)..."
           git clone -b kernel-4.19 https://gitlab.com/simonpunk/susfs4ksu.git susfs_repo
-
           echo "===> 2. Copiando arquivos fonte do SUSFS para a árvore do kernel..."
           cp -r -v susfs_repo/kernel_patches/fs/* fs/
           cp -r -v susfs_repo/kernel_patches/include/linux/* include/linux/
-
           echo "===> 3. Tentando aplicar o patch do SUSFS (50_add_susfs_in_kernel-4.19.patch)..."
           PATCH_FILE="susfs_repo/kernel_patches/50_add_susfs_in_kernel-4.19.patch"
 
