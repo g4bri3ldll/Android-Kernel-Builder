@@ -131,22 +131,6 @@ jobs:
           echo "CONFIG_HZ_300=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_HZ=300" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           
-      - name: ⚙️ Setup and Apply SUSFS Patches
-        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
-
-        run: |
-          echo "===> 1. Clonando repositório do susfs4ksu (branch kernel-4.19)..."
-          git clone -b kernel-4.19 https://gitlab.com/simonpunk/susfs4ksu.git susfs_repo
-
-          echo "===> 2. Aplicação do patch SUSFS..."
-          PATCH_FILE="susfs_repo/kernel_patches/50_add_susfs_in_kernel-4.19.patch"
-
-          patch -p1 -N --batch < "$PATCH_FILE" || true
-
-          echo "===> 3. Limpando arquivos .rej e prosseguindo para a compilação..."
-          find . -name "*.rej" -delete
-          echo "✅ Modificações manuais mantidas. Prosseguindo..."
-        
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
