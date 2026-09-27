@@ -140,7 +140,7 @@ jobs:
           echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> ./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}
           
       - name: ⚙️ Setup and Apply SUSFS Patches
-        working-directory: working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
+        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
 
         run: |
           echo "===> 1. Clonando repositório do susfs4ksu (branch kernel-4.19)..."
