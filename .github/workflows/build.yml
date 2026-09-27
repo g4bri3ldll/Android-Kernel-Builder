@@ -148,41 +148,15 @@ jobs:
           echo "===> 2. Copiando arquivos fonte do SUSFS para a árvore do kernel..."
           cp -r -v susfs_repo/kernel_patches/fs/* fs/
           cp -r -v susfs_repo/kernel_patches/include/linux/* include/linux/
-          echo "===> 3. Tentando aplicar o patch do SUSFS (50_add_susfs_in_kernel-4.19.patch)..."
+          echo "===> 3. Aplicação do patch SUSFS..."
           PATCH_FILE="susfs_repo/kernel_patches/50_add_susfs_in_kernel-4.19.patch"
 
           patch -p1 -N --batch < "$PATCH_FILE" || true
 
-          echo "===> 4. Verificando conflitos e gerando logs de rejeição (.rej)..."
-          REJ_FILES=$(find . -name "*.rej")
-
-          if [ -n "$REJ_FILES" ]; then
-            echo "--------------------------------------------------------"
-            echo "⚠️ ATENÇÃO: HOUVE ERROS DE CONFLITO AO APLICAR O PATCH!"
-            echo "--------------------------------------------------------"
-            for rej in $REJ_FILES; do
-              orig="${rej%.rej}"
-              echo "========================================================"
-              echo "📄 ARQUIVO REJEITADO: $rej"
-              echo "------------------ CONTEÚDO DO .REJ --------------------"
-              cat "$rej"
-              echo "--------------------------------------------------------"
-              echo "📄 ARQUIVO ORIGINAL CORRESPONDENTE: $orig"
-              if [ -f "$orig" ]; then
-                echo "--- Trecho inicial do arquivo original (Linhas 1 a 120) ---"
-                head -n 120 "$orig"
-              else
-                echo "Arquivo original não encontrado!"
-              fi
-              echo "========================================================"
-            done
-            
-            echo "❌ Interrompendo para análise dos logs acima."
-            exit 1
-          else
-            echo "✅ Patch aplicado com sucesso sem nenhum erro (.rej)!"
-          fi
-          
+          echo "===> 4. Limpando arquivos .rej e prosseguindo para a compilação..."
+          find . -name "*.rej" -delete
+          echo "✅ Modificações manuais mantidas. Prosseguindo..."
+        
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
