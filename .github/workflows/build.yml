@@ -151,7 +151,7 @@ jobs:
           echo "===> 3. Tentando aplicar o patch do SUSFS (50_add_susfs_in_kernel-4.19.patch)..."
           PATCH_FILE="susfs_repo/kernel_patches/50_add_susfs_in_kernel-4.19.patch"
 
-          git apply --ignore-whitespace --whitespace=nowarn --recount --reject "$PATCH_FILE" || true
+          patch -p1 -N --batch < "$PATCH_FILE" || true
 
           echo "===> 4. Verificando conflitos e gerando logs de rejeição (.rej)..."
           REJ_FILES=$(find . -name "*.rej")
