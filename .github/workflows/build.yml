@@ -147,29 +147,43 @@ jobs:
 
       - name: "🧩 Setup and Apply SUSFS"
         run: |
-          # Garante que as pastas de destino existam
+          # 1. Garante que as pastas de destino existam na raiz
           mkdir -p fs include/linux
 
           echo "===> Baixando arquivos de suporte e patches do SUSFS 4.19..."
           
-          # 1. Copiar os arquivos C e H do SUSFS diretamente para a árvore do kernel
+          # 2. Baixar os arquivos C e H diretamente para as pastas do Kernel
           curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/fs/susfs.c" -o fs/susfs.c
           curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/fs/sus_su.c" -o fs/sus_su.c
           curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/include/linux/susfs.h" -o include/linux/susfs.h
           curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/include/linux/sus_su.h" -o include/linux/sus_su.h
           curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/include/linux/susfs_def.h" -o include/linux/susfs_def.h
 
-          # 2. Baixar os patches do Kernel e do KernelSU
+          # 3. Baixar os patches do Kernel e do KernelSU
           curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/50_add_susfs_in_kernel-4.19.patch" -o susfs_kernel.patch
           curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" -o susfs_ksu.patch
 
           echo "===> Aplicando patch no KernelSU..."
-          patch -p1 --ignore-whitespace --fuzz=3 < susfs_ksu.patch || true
+          # Localiza onde o KernelSU está instalado para aplicar o patch na pasta certa
+          KSU_DIR=""
+          if [ -d "drivers/kernelsu" ]; then
+            KSU_DIR="drivers/kernelsu"
+          elif [ -d "KernelSU" ]; then
+            KSU_DIR="KernelSU"
+          elif [ -d "drivers/staging/kernelsu" ]; then
+            KSU_DIR="drivers/staging/kernelsu"
+          fi
+
+          if [ -n "$KSU_DIR" ]; then
+            patch -p1 -d "$KSU_DIR" --ignore-whitespace --fuzz=3 < susfs_ksu.patch || true
+          else
+            patch -p1 --ignore-whitespace --fuzz=3 < susfs_ksu.patch || true
+          fi
 
           echo "===> Aplicando patch principal do SUSFS no Kernel..."
           patch -p1 --ignore-whitespace --fuzz=3 < susfs_kernel.patch || {
-            echo "Aviso: Algumas partes do patch foram rejeitadas devido a divergências de código no seu kernel."
-            echo "Arquivos com conflito (.rej):"
+            echo "Aviso: Algumas partes do patch foram rejeitadas devido a divergências no código do kernel."
+            echo "Arquivos rejeitados (.rej):"
             find . -name "*.rej"
           }
           
