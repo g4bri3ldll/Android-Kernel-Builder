@@ -167,16 +167,16 @@ jobs:
           curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" -o susfs_ksu.patch
 
           echo "===> Buscando dinamicamente o diretório do ReSukiSU..."
-          # Encontra onde está o arquivo core_hook.c (que fica dentro do diretório 'kernel' do ReSukiSU)
           CORE_HOOK_PATH=$(find . -maxdepth 5 -name "core_hook.c" -print -quit)
 
           if [ -n "$CORE_HOOK_PATH" ]; then
             KSU_KERNEL_DIR=\((dirname "\)CORE_HOOK_PATH")
-            echo "Diretório encontrado: $KSU_KERNEL_DIR"
+            echo "Diretório do ReSukiSU encontrado: $KSU_KERNEL_DIR"
             
-            # Aplica o patch removendo os prefixos 'a/kernel/' ou 'b/kernel/' com -p2
-            patch -p2 --forward --batch -d "$KSU_KERNEL_DIR" < susfs_ksu.patch || \
-            patch -p1 --forward --batch -d "$KSU_KERNEL_DIR" < susfs_ksu.patch || true
+            # Tenta aplicar com -p2 e, se falhar, tenta com -p1
+            if ! patch -p2 --forward --batch -d "$KSU_KERNEL_DIR" < susfs_ksu.patch; then
+              patch -p1 --forward --batch -d "$KSU_KERNEL_DIR" < susfs_ksu.patch || true
+            fi
           else
             echo "ERRO: Não foi possível localizar os arquivos do ReSukiSU no projeto."
             echo "Estrutura do diretório atual:"
