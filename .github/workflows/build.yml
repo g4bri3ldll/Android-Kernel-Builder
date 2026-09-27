@@ -130,6 +130,32 @@ jobs:
           echo "CONFIG_MTK_PERF_TOUCH_BOOST=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_HZ_300=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_HZ=300" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+
+      - name: "🧩 Setup and Apply SUSFS"
+        working-directory: ./\({{ env.kernelDir }}/\){{ env.kernelName }}
+        run: |
+          echo "===> Baixando arquivos de suporte e patches do SUSFS 4.19..."
+          
+          # 1. Copiar os arquivos C e H do SUSFS diretamente para a árvore do kernel
+          curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/fs/susfs.c" -o fs/susfs.c
+          curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/fs/sus_su.c" -o fs/sus_su.c
+          curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/include/linux/susfs.h" -o include/linux/susfs.h
+          curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/include/linux/sus_su.h" -o include/linux/sus_su.h
+          curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/include/linux/susfs_def.h" -o include/linux/susfs_def.h
+
+          # 2. Baixar os patches do Kernel e do KernelSU
+          curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/50_add_susfs_in_kernel-4.19.patch" -o susfs_kernel.patch
+          curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" -o susfs_ksu.patch
+
+          echo "===> Aplicando patch no KernelSU..."
+          patch -p1 --ignore-whitespace --fuzz=3 < susfs_ksu.patch || true
+
+          echo "===> Aplicando patch principal do SUSFS no Kernel..."
+          patch -p1 --ignore-whitespace --fuzz=3 < susfs_kernel.patch || {
+            echo "Aviso: Algumas partes do patch foram rejeitadas devido a divergências de código no seu kernel."
+            echo "Arquivos com conflito (.rej):"
+            find . -name "*.rej"
+          }
           
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
