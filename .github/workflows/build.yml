@@ -140,19 +140,18 @@ jobs:
           echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> ./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}
           
       - name: ⚙️ Setup and Apply SUSFS Patches
+        working-directory: ./\({{ env.kernelDir }}/\){{ env.kernelName }}
         run: |
           echo "===> 1. Clonando repositório do susfs4ksu (branch kernel-4.19)..."
           git clone -b kernel-4.19 https://gitlab.com/simonpunk/susfs4ksu.git susfs_repo
 
           echo "===> 2. Copiando arquivos fonte do SUSFS para a árvore do kernel..."
-          # Copia os arquivos de fs/ e include/linux/ do SUSFS para as pastas da sua árvore
-          cp -v susfs_repo/kernel_patches/fs/* fs/
-          cp -v susfs_repo/kernel_patches/include/linux/* include/linux/
+          cp -r -v susfs_repo/kernel_patches/fs/* fs/
+          cp -r -v susfs_repo/kernel_patches/include/linux/* include/linux/
 
           echo "===> 3. Tentando aplicar o patch do SUSFS (50_add_susfs_in_kernel-4.19.patch)..."
           PATCH_FILE="susfs_repo/kernel_patches/50_add_susfs_in_kernel-4.19.patch"
 
-          # Executa o patch permitindo rejeitos em arquivos com divergências
           git apply --ignore-whitespace --whitespace=nowarn --recount --reject "$PATCH_FILE" || true
 
           echo "===> 4. Verificando conflitos e gerando logs de rejeição (.rej)..."
