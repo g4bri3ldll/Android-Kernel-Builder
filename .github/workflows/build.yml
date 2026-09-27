@@ -147,6 +147,9 @@ jobs:
 
       - name: "🧩 Setup and Apply SUSFS"
         run: |
+          # Garante que as pastas de destino existam
+          mkdir -p fs include/linux
+
           echo "===> Baixando arquivos de suporte e patches do SUSFS 4.19..."
           
           # 1. Copiar os arquivos C e H do SUSFS diretamente para a árvore do kernel
