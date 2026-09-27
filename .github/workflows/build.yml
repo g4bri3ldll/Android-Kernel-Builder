@@ -148,6 +148,68 @@ jobs:
           echo "===> 4. Limpando arquivos .rej e prosseguindo para a compilação..."
           find . -name "*.rej" -delete
           echo "✅ Modificações manuais mantidas. Prosseguindo..."
+
+      - name: Verify SUSFS Integration and Defconfig
+        run: |
+          echo "=============================================="
+          echo "       VERIFICANDO INTEGRAÇÃO DO SUSFS        "
+          echo "=============================================="
+          
+          ERROR=0
+
+          # 1. Verificar se os ficheiros principais do SUSFS existem na árvore
+          echo "[*] A verificar ficheiros do SUSFS..."
+          for file in "fs/susfs.c" "include/linux/susfs.h" "include/linux/sus_su.h"; do
+            if [ -f "$file" ]; then
+              echo "  [OK] Encontrado: $file"
+            else
+              echo "  [ERRO] Em falta: $file"
+              ERROR=1
+            fi
+          done
+
+          # 2. Verificar se as hooks do SUSFS estão presentes em fs/exec.c ou ficheiros críticos
+          echo "[*] A verificar assinaturas de hooks nos fontes..."
+          if grep -q "susfs_" fs/exec.c 2>/dev/null || grep -q "susfs_" fs/open.c 2>/dev/null; then
+            echo "  [OK] Assinaturas do SUSFS encontradas nos fontes do kernel."
+          else
+            echo "  [AVISO] Nenhuma assinatura detetada diretamente em exec.c/open.c (verifique se o patch foi aplicado no sítio certo)."
+          fi
+
+          # 3. Garantir/Verificar se as flags estão escritas no defconfig
+          DEFCONFIG_PATH="./arch/\({{ env.ARCH }}/configs/\){{ env.DEFCONFIG_NAME }}"
+          echo "[*] A verificar o defconfig em: $DEFCONFIG_PATH"
+          
+          if [ -f "$DEFCONFIG_PATH" ]; then
+            # Se a flag principal não estiver lá, injeta automaticamente para garantir
+            if ! grep -q "CONFIG_KSU_SUSFS=y" "$DEFCONFIG_PATH"; then
+              echo "[!] CONFIG_KSU_SUSFS não encontrada no defconfig. A injetar..."
+              echo "CONFIG_KSU_SUSFS=y" >> "$DEFCONFIG_PATH"
+              echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> "$DEFCONFIG_PATH"
+              echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> "$DEFCONFIG_PATH"
+              echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> "$DEFCONFIG_PATH"
+              echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y" >> "$DEFCONFIG_PATH"
+              echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> "$DEFCONFIG_PATH"
+              echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSUM=y" >> "$DEFCONFIG_PATH"
+              echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> "$DEFCONFIG_PATH"
+            else
+              echo "  [OK] Flags do SUSFS já estão presentes no defconfig."
+            fi
+          else
+            echo "  [ERRO] Ficheiro defconfig não encontrado em $DEFCONFIG_PATH"
+            ERROR=1
+          fi
+
+          if [ "$ERROR" -eq 1 ]; then
+            echo "=============================================="
+            echo " [ERRO CRÍTICO] Falhas detetadas na árvore do SUSFS! "
+            echo "=============================================="
+            exit 1
+          else
+            echo "=============================================="
+            echo " [SUCESSO] Tudo pronto para compilar com SUSFS!"
+            echo "=============================================="
+          fi
         
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
