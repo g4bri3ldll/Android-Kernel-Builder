@@ -130,30 +130,7 @@ jobs:
           echo "CONFIG_MTK_PERF_TOUCH_BOOST=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_HZ_300=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_HZ=300" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-            
-      - name: ⚙️ Setup and Apply NoMount (Kernel 4.19)
-        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
-        run: |
-          echo "===> 1. Clonando repositório do NoMount (branch old)..."
-          git clone -b old https://github.com/maxsteeel/nomount.git nomount_repo
 
-          echo "===> 2. Aplicando o patch específico para kernel 4.19..."
-          PATCH_FILE="nomount_repo/patches/experimental/nomount-kernel-4.19.patch"
-          
-          if [ -f "$PATCH_FILE" ]; then
-            patch -p1 --fuzz=10 < "$PATCH_FILE" || true
-            echo "✅ Patch do NoMount 4.19 aplicado com sucesso!"
-          else
-            echo "❌ Erro: Patch para o kernel 4.19 não foi encontrado."
-            exit 1
-          fi
-
-          echo "===> 3. Injetando CONFIG_NOMOUNT=y no defconfig..."
-          DEFCONFIG_PATH="./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}"
-          echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG_PATH"
-          echo "✅ Flag do NoMount adicionada ao defconfig!"
-
-          
       - name: "👍 Make defconfig"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
