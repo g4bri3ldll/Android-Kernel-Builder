@@ -1,7 +1,7 @@
 name: Build LineageOS 19.1 for Moto G22
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Permite iniciar a build manualmente pela aba Actions do GitHub
 
 jobs:
   build:
@@ -46,13 +46,25 @@ jobs:
         run: |
           mkdir -p ~/rom
           cd ~/rom
-          repo init -u https://github.com/LineageOS/android.git -b lineage-19.1 --git-lfs
+          repo init -u https://github.com/LineageOS/android.git -b lineage-19.1 --depth=1 --git-lfs
           git clone https://github.com/g4bri3ldll/android_manifest_hawaiip .repo/local_manifests
           repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j16
+          
+          # APAGA A PASTA .repo PARA LIBERAR MAIS DE 80GB DE ESPAÇO NO DISCO
+          echo "Liberando espaço em disco..."
+          rm -rf .repo
 
       - name: Start Compilation
         run: |
           cd ~/rom
           source build/envsetup.sh
           lunch lineage_hawaiip-userdebug
-          mka bacon -j16
+          mka bacon -j$(nproc --all)
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: LineageOS_19.1_hawaiip
+          path: ~/rom/out/target/product/hawaiip/*.zip
+          retention-days: 7
