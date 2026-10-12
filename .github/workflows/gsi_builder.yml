@@ -1,0 +1,82 @@
+name: Build Generic LineageOS 19.0 GSI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Extreme Free Disk Space
+        run: |
+          echo "Liberando espaço agressivamente..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo apt-get clean
+          df -h
+
+      - name: Set Swap Space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 12
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32z1-dev libelf-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc yasm zlib1g-dev
+
+      - name: Install Repo Tool
+        run: |
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          sudo ln -sf ~/bin/repo /usr/local/bin/repo
+
+      - name: Configure Git Identity
+        run: |
+          git config --global user.name "g4bri3ldll"
+          git config --global user.email "gabrielalves.dasilva.0983@gmail.com"
+
+      - name: Initialize Repo and Sync GSI Source
+        run: |
+          mkdir -p ~/rom
+          cd ~/rom
+          repo init -u https://github.com/LineageOS/android.git -b lineage-19.0 --depth=1 --git-lfs
+          git clone https://github.com/phhusson/treble_manifest .repo/local_manifests -b android-12.0
+          repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j4 --fail-fast
+          
+          echo "Apagando .repo para liberar espaço..."
+          rm -rf .repo
+          df -h
+
+      - name: Start Generic GSI Compilation
+        timeout-minutes: 270
+        run: |
+          mkdir -p ~/ci-logs
+          cd ~/rom
+          source build/envsetup.sh
+          lunch treble_arm64_bv-userdebug
+          make systemimage -j$(nproc --all) 2>&1 | tee ~/ci-logs/build.log
+
+      - name: Upload GSI Artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: LineageOS_19.0_Generic_GSI
+          path: ~/rom/out/target/product/treble_arm64/system.img
+          retention-days: 7
+
+      - name: Upload CI logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-logs-gsi
+          path: ~/ci-logs/
+          if-no-files-found: ignore
+          retention-days: 7
