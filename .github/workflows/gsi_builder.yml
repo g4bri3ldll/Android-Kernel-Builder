@@ -48,7 +48,17 @@ jobs:
           mkdir -p ~/rom
           cd ~/rom
           repo init -u https://github.com/LineageOS/android.git -b lineage-19.0 --depth=1 --git-lfs
-          git clone https://github.com/phhusson/treble_manifest .repo/local_manifests -b android-12.0
+          
+          # Criando o local_manifests de forma segura para evitar conflitos de remove-project
+          mkdir -p .repo/local_manifests
+          cat << 'EOF' > .repo/local_manifests/gsi.xml
+          <?xml version="1.0" encoding="UTF-8"?>
+          <manifest>
+            <project name="phhusson/treble_app" path="device/phh/treble" remote="github" revision="android-12.0" />
+            <project name="TrebleDroid/platform_frameworks_base" path="frameworks/base" remote="github" revision="android-12.0" />
+          </manifest>
+          EOF
+
           repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j4 --fail-fast
           
           echo "Apagando .repo para liberar espaço..."
