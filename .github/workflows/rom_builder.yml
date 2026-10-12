@@ -55,12 +55,98 @@ jobs:
           rm -rf .repo
           df -h
 
-      - name: Start Compilation
+      - name: Analyze tree (poda dependencias indefinidas so no runner)
         run: |
+          mkdir -p ~/ci-logs
           cd ~/rom
           source build/envsetup.sh
           lunch lineage_hawaiip-userdebug
-          mka bacon -j$(nproc --all)
+          : > ~/ci-logs/pruned_deps.txt
+          prev=""
+          for i in $(seq 1 25); do
+            if m nothing > ~/ci-logs/analysis.log 2>&1; then
+              echo "Analise OK na iteracao $i"
+              echo "Dependencias podadas (so na copia do runner):"
+              cat ~/ci-logs/pruned_deps.txt
+              exit 0
+            fi
+            deps=$(grep -oP 'depends on undefined module "\K[^"]+' ~/ci-logs/analysis.log | sort -u | tr '\n' ' ' || true)
+            if [ -z "$deps" ]; then
+              echo "Erro que NAO e dependencia indefinida:"
+              grep -n "error" ~/ci-logs/analysis.log | head -n 30 || true
+              tail -n 40 ~/ci-logs/analysis.log
+              exit 1
+            fi
+            if [ "$deps" = "$prev" ]; then
+              echo "Mesmas dependencias de novo, a poda nao funcionou: $deps"
+              tail -n 40 ~/ci-logs/analysis.log
+              exit 1
+            fi
+            if echo "$deps" | tr ' ' '\n' | grep -xE 'libc|libm|libdl|libutils|libcutils|liblog|libbase|libhidlbase|libbinder' > /dev/null; then
+              echo "Dependencia basica do Android indefinida: arvore incompleta? Abortando."
+              tail -n 40 ~/ci-logs/analysis.log
+              exit 1
+            fi
+            prev="$deps"
+            echo "[$i] podando: $deps"
+            echo "$deps" | tr ' ' '\n' | sed '/^$/d' >> ~/ci-logs/pruned_deps.txt
+            python3 - $deps <<'PY'
+          import re, sys
+          p = 'vendor/motorola/hawaiip/Android.bp'
+          t = open(p).read()
+          for d in sys.argv[1:]:
+              t = re.sub(r'(?m)^[ \t]*"' + re.escape(d) + r'",\n', '', t)
+          open(p, 'w').write(t)
+          PY
+          done
+          echo "Limite de iteracoes atingido"
+          tail -n 40 ~/ci-logs/analysis.log
+          exit 1
+
+      - name: Start Compilation
+        timeout-minutes: 270
+        run: |
+          mkdir -p ~/ci-logs
+          cd ~/rom
+          source build/envsetup.sh
+          lunch lineage_hawaiip-userdebug
+          mka bacon -j$(nproc --all) 2>&1 | tee ~/ci-logs/build.log
+
+      - name: Post-build dependency check
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p ~/ci-logs
+          [ -d ~/rom/out/target/product/hawaiip/vendor ] || { echo "sem imagem vendor para checar"; exit 0; }
+          python3 - <<'PY' | tee ~/ci-logs/missing_deps.txt
+          import collections, os, subprocess
+          OUT = os.path.expanduser('~/rom/out/target/product/hawaiip')
+          provided = set()
+          for d in ('system', 'vendor', 'odm', 'system_ext', 'product', 'symbols'):
+              for _, _, files in os.walk(os.path.join(OUT, d)):
+                  provided.update(files)
+          def is_elf(p):
+              try:
+                  with open(p, 'rb') as f:
+                      return f.read(4) == b'\x7fELF'
+              except OSError:
+                  return False
+          def needed(p):
+              out = subprocess.run(['readelf', '-d', p], capture_output=True, text=True).stdout
+              return [l.split('[', 1)[1].split(']', 1)[0] for l in out.splitlines() if '(NEEDED)' in l]
+          missing = collections.defaultdict(set)
+          for part in ('vendor', 'odm'):
+              for root, _, files in os.walk(os.path.join(OUT, part)):
+                  for f in files:
+                      p = os.path.join(root, f)
+                      if os.path.isfile(p) and is_elf(p):
+                          for n in needed(p):
+                              if n not in provided:
+                                  missing[n].add(os.path.relpath(p, OUT))
+          print(f'{len(missing)} libs pedidas por blobs do vendor e nao encontradas na build')
+          for n in sorted(missing):
+              print(f'{n} [{len(missing[n])}] ex: ' + ', '.join(sorted(missing[n])[:2]))
+          PY
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -68,4 +154,13 @@ jobs:
         with:
           name: LineageOS_19.1_hawaiip
           path: ~/rom/out/target/product/hawaiip/*.zip
+          retention-days: 7
+
+      - name: Upload CI logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-logs-hawaiip
+          path: ~/ci-logs/
+          if-no-files-found: ignore
           retention-days: 7
