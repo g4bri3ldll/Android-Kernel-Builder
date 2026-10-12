@@ -1,7 +1,7 @@
 name: Build LineageOS 19.1 for Moto G22
 
 on:
-  workflow_dispatch: # Permite iniciar a build manualmente pela aba Actions do GitHub
+  workflow_dispatch:
 
 jobs:
   build:
@@ -10,15 +10,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Maximize Build Space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 1024
-          swap-size-mb: 10240
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
+      - name: Extreme Free Disk Space
+        run: |
+          echo "Liberando espaço agressivamente..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo apt-get clean
+          df -h
 
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -50,9 +51,9 @@ jobs:
           git clone https://github.com/g4bri3ldll/android_manifest_hawaiip .repo/local_manifests
           repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j16
           
-          # APAGA A PASTA .repo PARA LIBERAR MAIS DE 80GB DE ESPAÇO NO DISCO
-          echo "Liberando espaço em disco..."
+          echo "Apagando .repo para liberar espaço..."
           rm -rf .repo
+          df -h
 
       - name: Start Compilation
         run: |
