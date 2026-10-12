@@ -49,8 +49,11 @@ jobs:
           cd ~/rom
           repo init -u https://github.com/LineageOS/android.git -b lineage-19.0 --depth=1 --git-lfs
           
-          # Clona o manifesto do TrebleDroid corretamente para a pasta de locais
+          # Clona o manifesto do TrebleDroid
           git clone https://github.com/phhusson/treble_manifest .repo/local_manifests -b android-12.0
+          
+          # Remove referências incompatíveis com a estrutura do LineageOS nos arquivos XML clonados
+          find .repo/local_manifests -name "*.xml" -exec sed -i '/platform\/system\/core/d' {} +
           
           repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j4 --fail-fast
           
@@ -64,7 +67,6 @@ jobs:
           mkdir -p ~/ci-logs
           cd ~/rom
           source build/envsetup.sh
-          # Alvo padrão de GSI do TrebleDroid base AOSP/Lineage (ex: treble_arm64_bv)
           lunch treble_arm64_bv-userdebug
           make systemimage -j$(nproc --all) 2>&1 | tee ~/ci-logs/build.log
 
