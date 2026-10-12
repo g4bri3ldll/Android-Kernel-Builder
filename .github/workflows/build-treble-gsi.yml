@@ -55,13 +55,11 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git lfs install
 
-      # O espaco e maximizado DEPOIS de instalar os pacotes, para o apt nao
-      # ficar sem espaco no disco raiz.
       - name: Maximizar espaco de build e criar swap
         if: ${{ inputs.maximize_space }}
         uses: easimon/maximize-build-space@master
         with:
-          root-reserve-mb: 10240
+          root-reserve-mb: 4096
           temp-reserve-mb: 100
           swap-size-mb: 8192
           build-mount-path: /home/runner/build
@@ -109,13 +107,8 @@ jobs:
 
           git clone --depth=1 https://github.com/phhusson/treble_manifest .repo/local_manifests -b android-12.0
 
-          # CORRECAO DO ERRO "duplicate path system/core":
-          # o replace.xml so serve para AOSP puro. Em qualquer outra ROM
-          # (LineageOS incluso) ele precisa ser apagado, como diz o guia
-          # oficial "How to build a GSI?" do phh.
           rm -f .repo/local_manifests/replace.xml
 
-          # Valida o manifesto antes do sync demorado (falha rapido se houver duplicatas)
           repo manifest -o /tmp/resolved-manifest.xml
 
           ok=0
@@ -130,7 +123,6 @@ jobs:
           [ "$ok" = 1 ] || { echo "repo sync falhou nas 3 tentativas"; exit 1; }
           df -h "$BUILD_ROOT"
 
-          # Gera os produtos treble_* (passo obrigatorio do guia do phh)
           ( cd device/phh/treble && bash generate.sh vendor/lineage/config/common_full_phone.mk )
 
           echo "Apagando .repo para liberar espaco..."
