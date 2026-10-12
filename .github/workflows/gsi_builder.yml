@@ -49,13 +49,14 @@ jobs:
           cd ~/rom
           repo init -u https://github.com/LineageOS/android.git -b lineage-19.0 --depth=1 --git-lfs
           
-          # Criando o local_manifests de forma segura para evitar conflitos de remove-project
+          # Criando o local_manifests removendo o repositório nativo antes da substituição
           mkdir -p .repo/local_manifests
           cat << 'EOF' > .repo/local_manifests/gsi.xml
           <?xml version="1.0" encoding="UTF-8"?>
           <manifest>
-            <project name="phhusson/treble_app" path="device/phh/treble" remote="github" revision="android-12.0" />
+            <remove-project name="LineageOS/android_frameworks_base" />
             <project name="TrebleDroid/platform_frameworks_base" path="frameworks/base" remote="github" revision="android-12.0" />
+            <project name="phhusson/treble_app" path="device/phh/treble" remote="github" revision="android-12.0" />
           </manifest>
           EOF
 
