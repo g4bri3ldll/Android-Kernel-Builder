@@ -28,6 +28,9 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 360
+    defaults:
+      run:
+        working-directory: /home/runner/build
 
     steps:
       - name: Limpar software pre-instalado
