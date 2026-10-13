@@ -1,4 +1,4 @@
-name: Build LineageOS 19.0 for Moto G22
+name: Build LineageOS 19.1 for Moto G22
 
 on:
   workflow_dispatch:
@@ -47,7 +47,7 @@ jobs:
         run: |
           mkdir -p ~/rom
           cd ~/rom
-          repo init -u https://github.com/LineageOS/android.git -b lineage-19.0 --depth=1 --git-lfs
+          repo init -u https://github.com/LineageOS/android.git -b lineage-19.1 --depth=1 --git-lfs
           git clone https://github.com/g4bri3ldll/android_manifest_hawaiip .repo/local_manifests
           repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j4 --fail-fast
           
@@ -123,12 +123,13 @@ jobs:
           exit 1
 
       - name: Start Compilation
-        timeout-minutes: 270
+        timeout-minutes: 240
         run: |
           mkdir -p ~/ci-logs
           cd ~/rom
           source build/envsetup.sh
           lunch lineage_hawaiip-userdebug
+          set -o pipefail
           mka bacon -j$(nproc --all) 2>&1 | tee ~/ci-logs/build.log
 
       - name: Post-build dependency check
