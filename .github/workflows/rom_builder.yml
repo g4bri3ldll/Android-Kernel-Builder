@@ -56,7 +56,7 @@ jobs:
           df -h
 
       - name: Analyze tree (ajustes so no runner)
-        timeout-minutes: 60
+        timeout-minutes: 90
         run: |
           mkdir -p ~/ci-logs
           cat > ~/prune_step.py <<'PY'
@@ -70,7 +70,7 @@ jobs:
           BASIC = {'libc', 'libm', 'libdl', 'libutils', 'libcutils', 'liblog', 'libbase', 'libhidlbase', 'libbinder'}
           BLOCK = re.compile(r'(?ms)^\w+ \{\n.*?^\}\n')
           NAME = re.compile(r'(?m)^    name: "([^"]+)",\n')
-          LISTS = re.compile(r'(?s)(\b(?:shared_libs|static_libs|runtime_libs|required): \[)(.*?)\]')
+          SRCS = re.compile(r'"proprietary/([^"]+)"')
 
           log = open(LOG, errors='replace').read()
           bp = open(BP).read()
@@ -78,15 +78,34 @@ jobs:
           changes = []
 
 
-          def kind(blk):
-              if blk.startswith('cc_'):
-                  return 'cc'
-              if blk.startswith(('sh_binary', 'prebuilt_etc')):
-                  return 'file'
-              return None
+          def drop(name):
+              global bp, mk
+              srcs = []
+
+              def f(m):
+                  blk = m.group(0)
+                  nm = NAME.search(blk)
+                  if nm and nm.group(1) == name:
+                      srcs.extend(SRCS.findall(blk))
+                      return ''
+                  return blk
+
+              new = BLOCK.sub(f, bp)
+              if new == bp:
+                  return
+              bp = new
+              out = []
+              for line in mk.split('\n'):
+                  if line.strip().rstrip('\\').strip() == name:
+                      if not line.rstrip().endswith('\\') and out and out[-1].rstrip().endswith('\\'):
+                          out[-1] = out[-1].rstrip()[:-1].rstrip()
+                      continue
+                  out.append(line)
+              mk = '\n'.join(out)
+              changes.append('drop\t%s\t%s' % (name, ','.join(sorted(set(srcs)))))
 
 
-          # 1) Soong: dependencia indefinida ou invisivel (so a lista; o blob continua)
+          # 1) Soong: dependencia indefinida ou invisivel (poda so a referencia; o blob continua)
           undefined = set(re.findall(r'depends on undefined module "([^"]+)"', log))
           invisible = set(re.findall(r'depends on //[^:\s]+:(\S+) which is not visible to this module', log))
           if BASIC & (undefined | invisible):
@@ -116,7 +135,7 @@ jobs:
           if edges:
               bp = BLOCK.sub(fix_cycle, bp)
 
-          # 3) Kati: modulo do vendor com o mesmo nome de um modulo da arvore -> renomeia (arquivo instalado nao muda)
+          # 3) Kati: mesmo nome de modulo da arvore -> o AOSP fica com ele
           if not changes and 'already defined by' in log:
               names = set()
               for p1, nm, p2 in re.findall(r'error: (\S+): MODULE\.TARGET\.\w+\.(\S+) already defined by (\S+?)\.?\s*$', log, re.M):
@@ -141,30 +160,17 @@ jobs:
                               owners.setdefault((cur.get('c', ''), cur['n']), set()).add(cur['p'])
                           cur = {}
               names |= {n for (c, n), ps in owners.items() if len(ps) > 1 and VEN in ps}
-              todo = {}
-              for blk in BLOCK.findall(bp):
-                  nm = NAME.search(blk)
-                  if nm and nm.group(1) in names and kind(blk):
-                      todo[nm.group(1)] = nm.group(1) + '_vendor'
+              for n in sorted(names):
+                  drop(n)
 
-              def apply(m):
-                  blk = m.group(0)
-                  nm = NAME.search(blk)
-                  if nm and nm.group(1) in todo:
-                      n = nm.group(1)
-                      extra = ''
-                      if kind(blk) == 'cc' and not re.search(r'(?m)^    stem:', blk):
-                          extra = '    stem: "%s",\n' % n
-                      elif kind(blk) == 'file' and not re.search(r'(?m)^    filename:', blk):
-                          extra = '    filename: "%s",\n' % n
-                      blk = blk.replace(nm.group(0), '    name: "%s",\n' % todo[n] + extra, 1)
-                  return LISTS.sub(lambda pm: pm.group(1) + re.sub(r'"([^"]+)"', lambda q: '"%s"' % todo.get(q.group(1), q.group(1)), pm.group(2)) + ']', blk)
-
-              if todo:
-                  bp = BLOCK.sub(apply, bp)
-                  for n, r in sorted(todo.items()):
-                      mk = re.sub(r'(?m)^(\s+)' + re.escape(n) + r'(\s*\\?)$', lambda m, r=r: m.group(1) + r + m.group(2), mk)
-                      changes.append('rename\t%s -> %s' % (n, r))
+          # 4) Kati: dois modulos instalando o mesmo arquivo -> remove o do vendor
+          if not changes:
+              for t in re.findall(r"overriding commands for target `([^']+)'", log):
+                  base = os.path.basename(t)
+                  for blk in BLOCK.findall(bp):
+                      nm = NAME.search(blk)
+                      if nm and any(os.path.basename(s) == base for s in SRCS.findall(blk)):
+                          drop(nm.group(1))
 
           if not changes:
               sys.exit(2)
@@ -177,7 +183,7 @@ jobs:
           source build/envsetup.sh
           lunch lineage_hawaiip-userdebug
           : > ~/ci-logs/pruned_deps.txt
-          for i in $(seq 1 12); do
+          for i in $(seq 1 20); do
             if m nothing > ~/ci-logs/analysis.log 2>&1; then
               echo "Analise OK na iteracao $i"
               echo "Alterado so na copia do runner (tipo / item):"
@@ -198,7 +204,7 @@ jobs:
           exit 1
           
       - name: Start Compilation
-        timeout-minutes: 240
+        timeout-minutes: 180
         run: |
           mkdir -p ~/ci-logs
           cd ~/rom
