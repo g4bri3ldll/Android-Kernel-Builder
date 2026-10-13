@@ -28,9 +28,6 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 360
-    defaults:
-      run:
-        working-directory: /home/runner/build
 
     steps:
       - name: Limpar software pre-instalado
@@ -99,6 +96,7 @@ jobs:
 
       - name: Inicializar repo, adicionar manifesto TrebleDroid e sincronizar
         timeout-minutes: 80
+        working-directory: /home/runner/build
         env:
           LINEAGE_BRANCH: ${{ inputs.lineage_branch }}
         run: |
@@ -134,6 +132,7 @@ jobs:
 
       - name: Compilar a GSI
         timeout-minutes: 235
+        working-directory: /home/runner/build
         env:
           LUNCH_TARGET: ${{ inputs.lunch_target }}
         run: |
@@ -174,6 +173,7 @@ jobs:
 
       - name: Compactar a system.img
         if: success()
+        working-directory: /home/runner/build
         env:
           LINEAGE_BRANCH: ${{ inputs.lineage_branch }}
           LUNCH_TARGET: ${{ inputs.lunch_target }}
