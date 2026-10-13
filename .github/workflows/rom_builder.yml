@@ -152,7 +152,7 @@ jobs:
                       elif line.startswith('LOCAL_MODULE := '):
                           cur['n'] = line.split(':=', 1)[1].strip()
                       elif line.startswith('LOCAL_MODULE_CLASS := '):
-                          cur['c'] = line.split(':=', 1)[1].strip()
+                        cur['c'] = line.split(':=', 1)[1].strip()
                       elif line.startswith('LOCAL_IS_HOST_MODULE := true'):
                           cur['h'] = 1
                       elif line.startswith('include ') and 'n' in cur and 'p' in cur:
@@ -165,6 +165,15 @@ jobs:
 
           # 4) Kati: dois modulos instalando o mesmo arquivo -> remove o do vendor
           if not changes:
+              # Tratamento especifico para fstab ou conflitos de alvos de targets duplicados
+              fstab_targets = re.findall(r'overriding commands for target `([^\']+)fstab[^\']+\'', log)
+              for ft in fstab_targets:
+                  # Procura no Android.bp módulos que instalem este fstab e remove-os
+                  for blk in BLOCK.findall(bp):
+                      nm = NAME.search(blk)
+                      if nm and ('fstab' in nm.group(1).lower() or any('fstab' in s for s in SRCS.findall(blk))):
+                          drop(nm.group(1))
+
               for t in re.findall(r"overriding commands for target `([^']+)'", log):
                   base = os.path.basename(t)
                   for blk in BLOCK.findall(bp):
