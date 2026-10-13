@@ -57,27 +57,12 @@ jobs:
           remove-codeql: 'true'
           remove-docker-images: 'true'
 
-      - name: Migrar HOME para a particao de build (104GB)
-        run: |
-          # Cria a nova estrutura HOME dentro do disco grande
-          mkdir -p /home/runner/build/home
-          
-          # Move arquivos de configuração essenciais se existirem
-          cp -r ~/.gitconfig ~/.ssh /home/runner/build/home/ 2>/dev/null || true
-          
-          # Substitui a pasta HOME do sistema por um link simbólico apontando para o disco de build
-          sudo sed -i 's|/home/runner:|/home/runner/build/home:|g' /etc/passwd
-          export HOME=/home/runner/build/home
-          
-          echo "HOME atualizado para: $HOME"
-          df -h
-
       - name: Instalar a ferramenta repo
         run: |
-          mkdir -p ~/bin
-          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-          chmod a+x ~/bin/repo
-          sudo ln -sf ~/bin/repo /usr/local/bin/repo
+          mkdir -p /home/runner/build/bin
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo > /home/runner/build/bin/repo
+          chmod a+x /home/runner/build/bin/repo
+          sudo ln -sf /home/runner/build/bin/repo /usr/local/bin/repo
 
       - name: Configurar identidade do Git
         run: |
@@ -98,9 +83,11 @@ jobs:
         timeout-minutes: 120
         env:
           LINEAGE_BRANCH: ${{ inputs.lineage_branch }}
+          HOME: /home/runner/build
+          XDG_CACHE_HOME: /home/runner/build/.cache
         run: |
           set -euo pipefail
-          mkdir -p "$ROM_DIR"
+          mkdir -p "$ROM_DIR" /home/runner/build/.cache
           cd "$ROM_DIR"
 
           repo init -u https://github.com/LineageOS/android.git -b "$LINEAGE_BRANCH" --depth=1 --git-lfs
@@ -133,6 +120,8 @@ jobs:
         timeout-minutes: 235
         env:
           LUNCH_TARGET: ${{ inputs.lunch_target }}
+          HOME: /home/runner/build
+          XDG_CACHE_HOME: /home/runner/build/.cache
         run: |
           set -o pipefail
           mkdir -p "$LOG_DIR" "$CCACHE_DIR"
