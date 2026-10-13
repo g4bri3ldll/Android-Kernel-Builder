@@ -56,7 +56,7 @@ jobs:
           df -h
 
       - name: Analyze tree (ajustes so no runner)
-        timeout-minutes: 120
+        timeout-minutes: 150
         run: |
           mkdir -p ~/ci-logs
           cat > ~/prune_step.py <<'PY'
@@ -65,6 +65,7 @@ jobs:
           LOG = os.path.expanduser('~/ci-logs/analysis.log')
           OUT = os.path.expanduser('~/ci-logs/pruned_deps.txt')
           VEN = 'vendor/motorola/hawaiip'
+          DEV = 'device/motorola/hawaiip'
           BP = VEN + '/Android.bp'
           MK = VEN + '/hawaiip-vendor.mk'
           BASIC = {'libc', 'libm', 'libdl', 'libutils', 'libcutils', 'liblog', 'libbase', 'libhidlbase', 'libbinder'}
@@ -72,7 +73,8 @@ jobs:
           NAME = re.compile(r'(?m)^    name: "([^"]+)",\n')
           SRCS = re.compile(r'"proprietary/([^"]+)"')
 
-          log = open(LOG, errors='replace').read()
+          PRE = len(sys.argv) > 1 and sys.argv[1] == '--pre'
+          log = '' if PRE else open(LOG, errors='replace').read()
           bp = open(BP).read()
           mk = open(MK).read()
           changes = []
@@ -104,6 +106,37 @@ jobs:
               mk = '\n'.join(out)
               changes.append('drop\t%s\t%s' % (name, ','.join(sorted(set(srcs)))))
 
+
+          def drop_copies(pred):
+              global mk
+              out, gone = [], []
+              for line in mk.split('\n'):
+                  s = line.strip().rstrip('\\').strip()
+                  if ':' in s and pred(s):
+                      gone.append(s.split(':')[0].split('/proprietary/', 1)[-1])
+                      if not line.rstrip().endswith('\\') and out and out[-1].rstrip().endswith('\\'):
+                          out[-1] = out[-1].rstrip()[:-1].rstrip()
+                      continue
+                  out.append(line)
+              mk = '\n'.join(out)
+              return gone
+
+
+          # 0) Pre-passo: arquivos que o rootdir da device tree ja fornece saem da vendor tree
+          if PRE:
+              skip = {'Android.bp', 'Android.mk', 'README.md', '.gitignore'}
+              have = {x for _, _, fs in os.walk(DEV + '/rootdir') for x in fs} - skip
+              for g in drop_copies(lambda s: os.path.basename(s.split(':')[0]) in have):
+                  changes.append('rootdir-wins\tcopy\t' + g)
+              for blk in BLOCK.findall(bp):
+                  nm = NAME.search(blk)
+                  if nm and blk.startswith(('prebuilt_etc', 'sh_binary')) and any(os.path.basename(s) in have for s in SRCS.findall(blk)):
+                      drop(nm.group(1))
+              open(BP, 'w').write(bp)
+              open(MK, 'w').write(mk)
+              open(OUT, 'a').write(''.join(c + '\n' for c in changes))
+              print('\n'.join(changes) if changes else 'pre-passo: nada a ajustar')
+              sys.exit(0)
 
           # 1) Soong: dependencia indefinida ou invisivel (poda so a referencia; o blob continua)
           undefined = set(re.findall(r'depends on undefined module "([^"]+)"', log))
@@ -152,7 +185,7 @@ jobs:
                       elif line.startswith('LOCAL_MODULE := '):
                           cur['n'] = line.split(':=', 1)[1].strip()
                       elif line.startswith('LOCAL_MODULE_CLASS := '):
-                        cur['c'] = line.split(':=', 1)[1].strip()
+                          cur['c'] = line.split(':=', 1)[1].strip()
                       elif line.startswith('LOCAL_IS_HOST_MODULE := true'):
                           cur['h'] = 1
                       elif line.startswith('include ') and 'n' in cur and 'p' in cur:
@@ -163,23 +196,24 @@ jobs:
               for n in sorted(names):
                   drop(n)
 
-          # 4) Kati: dois modulos instalando o mesmo arquivo -> remove o do vendor
+          # 4) Kati: dois instaladores do mesmo arquivo -> modulo do vendor sai
           if not changes:
-              # Tratamento especifico para fstab ou conflitos de alvos de targets duplicados
-              fstab_targets = re.findall(r'overriding commands for target `([^\']+)fstab[^\']+\'', log)
-              for ft in fstab_targets:
-                  # Procura no Android.bp módulos que instalem este fstab e remove-os
-                  for blk in BLOCK.findall(bp):
-                      nm = NAME.search(blk)
-                      if nm and ('fstab' in nm.group(1).lower() or any('fstab' in s for s in SRCS.findall(blk))):
-                          drop(nm.group(1))
-
               for t in re.findall(r"overriding commands for target `([^']+)'", log):
                   base = os.path.basename(t)
                   for blk in BLOCK.findall(bp):
                       nm = NAME.search(blk)
                       if nm and any(os.path.basename(s) == base for s in SRCS.findall(blk)):
                           drop(nm.group(1))
+
+          # 5) Kati: o mesmo destino por copia (PRODUCT_COPY_FILES) -> a copia do vendor sai
+          if not changes:
+              for t in re.findall(r"overriding commands for target `([^']+)'", log):
+                  tail = re.sub(r'^.*?/product/[^/]+/', '', t)
+                  tail = re.sub(r'^system/(?=vendor/|odm/|product/|system_ext/)', '', tail)
+                  part, _, rest = tail.partition('/')
+                  want = '$(TARGET_COPY_OUT_%s)/%s' % (part.upper(), rest)
+                  for g in drop_copies(lambda s: s.split(':', 1)[1] == want):
+                      changes.append('drop-copy\t' + g)
 
           if not changes:
               sys.exit(2)
@@ -192,7 +226,8 @@ jobs:
           source build/envsetup.sh
           lunch lineage_hawaiip-userdebug
           : > ~/ci-logs/pruned_deps.txt
-          for i in $(seq 1 20); do
+          python3 ~/prune_step.py --pre
+          for i in $(seq 1 40); do
             if m nothing > ~/ci-logs/analysis.log 2>&1; then
               echo "Analise OK na iteracao $i"
               echo "Alterado so na copia do runner (tipo / item):"
@@ -211,8 +246,16 @@ jobs:
           echo "Limite de iteracoes atingido"
           tail -n 30 ~/ci-logs/analysis.log
           exit 1
+
+      - name: Save pruned vendor files
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p ~/ci-logs/vendor-pruned
+          cp ~/rom/vendor/motorola/hawaiip/Android.bp ~/rom/vendor/motorola/hawaiip/hawaiip-vendor.mk ~/ci-logs/vendor-pruned/    
           
       - name: Start Compilation
+        if: false
         timeout-minutes: 180
         run: |
           mkdir -p ~/ci-logs
