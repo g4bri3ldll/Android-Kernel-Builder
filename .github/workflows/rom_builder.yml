@@ -55,52 +55,71 @@ jobs:
           rm -rf .repo
           df -h
 
-      - name: Analyze tree (poda dependencias indefinidas so no runner)
+      - name: Analyze tree (poda dependencias so no runner)
         run: |
           mkdir -p ~/ci-logs
+          cat > ~/prune_step.py <<'PY'
+          import os, re, sys
+          LOG = os.path.expanduser('~/ci-logs/analysis.log')
+          OUT = os.path.expanduser('~/ci-logs/pruned_deps.txt')
+          BP = 'vendor/motorola/hawaiip/Android.bp'
+          BASIC = {'libc', 'libm', 'libdl', 'libutils', 'libcutils', 'liblog', 'libbase', 'libhidlbase', 'libbinder'}
+          log = open(LOG, errors='replace').read()
+          bp = open(BP).read()
+          changes = []
+          undefined = sorted(set(re.findall(r'depends on undefined module "([^"]+)"', log)))
+          if BASIC & set(undefined):
+              print('Dependencia basica indefinida: ' + ', '.join(sorted(BASIC & set(undefined))))
+              sys.exit(3)
+          for d in undefined:
+              bp = re.sub(r'(?m)^[ \t]*"' + re.escape(d) + r'",\n', '', bp)
+              changes.append('undefined\t' + d)
+          edges = set()
+          for a, b in re.findall(r'module "([^"]+)" variant "[^"]*" depends on module "([^"]+)" variant "[^"]*"', log):
+              if a != b:
+                  edges.add((a, b))
+          def fix(m):
+              blk = m.group(0)
+              nm = re.search(r'(?m)^    name: "([^"]+)"', blk)
+              if not nm:
+                  return blk
+              for a, b in sorted(edges):
+                  if nm.group(1) == a:
+                      new = re.sub(r'(?m)^[ \t]*"' + re.escape(b) + r'",\n', '', blk)
+                      if new != blk:
+                          changes.append('cycle\t' + a + ' -> ' + b)
+                          blk = new
+              return blk
+          if edges:
+              bp = re.sub(r'(?ms)^\w+ \{\n.*?^\}\n', fix, bp)
+          if not changes:
+              sys.exit(2)
+          open(BP, 'w').write(bp)
+          open(OUT, 'a').write('\n'.join(changes) + '\n')
+          print('\n'.join(changes))
+          PY
           cd ~/rom
           source build/envsetup.sh
           lunch lineage_hawaiip-userdebug
           : > ~/ci-logs/pruned_deps.txt
-          prev=""
-          for i in $(seq 1 25); do
+          for i in $(seq 1 60); do
             if m nothing > ~/ci-logs/analysis.log 2>&1; then
               echo "Analise OK na iteracao $i"
-              echo "Dependencias podadas (so na copia do runner):"
+              echo "Podado so na copia do runner (tipo / item):"
               cat ~/ci-logs/pruned_deps.txt
               exit 0
             fi
-            deps=$(grep -oP 'depends on undefined module "\K[^"]+' ~/ci-logs/analysis.log | sort -u | tr '\n' ' ' || true)
-            if [ -z "$deps" ]; then
-              echo "Erro que NAO e dependencia indefinida:"
-              grep -n "error" ~/ci-logs/analysis.log | head -n 30 || true
-              tail -n 40 ~/ci-logs/analysis.log
+            echo "[$i]"
+            python3 ~/prune_step.py && rc=0 || rc=$?
+            if [ "$rc" != "0" ]; then
+              echo "Parando (codigo $rc). Erros do Soong:"
+              grep -n "error" ~/ci-logs/analysis.log | head -n 40 || true
+              tail -n 30 ~/ci-logs/analysis.log
               exit 1
             fi
-            if [ "$deps" = "$prev" ]; then
-              echo "Mesmas dependencias de novo, a poda nao funcionou: $deps"
-              tail -n 40 ~/ci-logs/analysis.log
-              exit 1
-            fi
-            if echo "$deps" | tr ' ' '\n' | grep -xE 'libc|libm|libdl|libutils|libcutils|liblog|libbase|libhidlbase|libbinder' > /dev/null; then
-              echo "Dependencia basica do Android indefinida: arvore incompleta? Abortando."
-              tail -n 40 ~/ci-logs/analysis.log
-              exit 1
-            fi
-            prev="$deps"
-            echo "[$i] podando: $deps"
-            echo "$deps" | tr ' ' '\n' | sed '/^$/d' >> ~/ci-logs/pruned_deps.txt
-            python3 - $deps <<'PY'
-          import re, sys
-          p = 'vendor/motorola/hawaiip/Android.bp'
-          t = open(p).read()
-          for d in sys.argv[1:]:
-              t = re.sub(r'(?m)^[ \t]*"' + re.escape(d) + r'",\n', '', t)
-          open(p, 'w').write(t)
-          PY
           done
           echo "Limite de iteracoes atingido"
-          tail -n 40 ~/ci-logs/analysis.log
+          tail -n 30 ~/ci-logs/analysis.log
           exit 1
 
       - name: Start Compilation
