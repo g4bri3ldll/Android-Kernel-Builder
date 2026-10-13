@@ -56,17 +56,27 @@ jobs:
           df -h
 
       - name: Analyze tree (poda dependencias so no runner)
+        timeout-minutes: 40
         run: |
           mkdir -p ~/ci-logs
           cat > ~/prune_step.py <<'PY'
-          import os, re, sys
+          import glob, os, re, sys
+
           LOG = os.path.expanduser('~/ci-logs/analysis.log')
           OUT = os.path.expanduser('~/ci-logs/pruned_deps.txt')
-          BP = 'vendor/motorola/hawaiip/Android.bp'
+          VEN = 'vendor/motorola/hawaiip'
+          BP = VEN + '/Android.bp'
+          MK = VEN + '/hawaiip-vendor.mk'
           BASIC = {'libc', 'libm', 'libdl', 'libutils', 'libcutils', 'liblog', 'libbase', 'libhidlbase', 'libbinder'}
+          BLOCK = re.compile(r'(?ms)^\w+ \{\n.*?^\}\n')
+          LISTS = re.compile(r'(?s)(\b(?:shared_libs|static_libs|runtime_libs|required): \[)(.*?)\]')
+
           log = open(LOG, errors='replace').read()
           bp = open(BP).read()
+          mk = open(MK).read()
           changes = []
+
+          # 1) Soong: dependencia indefinida
           undefined = sorted(set(re.findall(r'depends on undefined module "([^"]+)"', log)))
           if BASIC & set(undefined):
               print('Dependencia basica indefinida: ' + ', '.join(sorted(BASIC & set(undefined))))
@@ -74,27 +84,63 @@ jobs:
           for d in undefined:
               bp = re.sub(r'(?m)^[ \t]*"' + re.escape(d) + r'",\n', '', bp)
               changes.append('undefined\t' + d)
-          edges = set()
-          for a, b in re.findall(r'module "([^"]+)" variant "[^"]*" depends on module "([^"]+)" variant "[^"]*"', log):
-              if a != b:
-                  edges.add((a, b))
-          def fix(m):
+
+          # 2) Soong: ciclo de dependencia
+          edges = {(a, b) for a, b in re.findall(r'module "([^"]+)" variant "[^"]*" depends on module "([^"]+)" variant "[^"]*"', log) if a != b}
+          def fix_cycle(m):
               blk = m.group(0)
               nm = re.search(r'(?m)^    name: "([^"]+)"', blk)
-              if not nm:
-                  return blk
-              for a, b in sorted(edges):
-                  if nm.group(1) == a:
-                      new = re.sub(r'(?m)^[ \t]*"' + re.escape(b) + r'",\n', '', blk)
-                      if new != blk:
-                          changes.append('cycle\t' + a + ' -> ' + b)
-                          blk = new
+              if nm:
+                  for a, b in sorted(edges):
+                      if nm.group(1) == a:
+                          new = re.sub(r'(?m)^[ \t]*"' + re.escape(b) + r'",\n', '', blk)
+                          if new != blk:
+                              changes.append('cycle\t' + a + ' -> ' + b)
+                              blk = new
               return blk
           if edges:
-              bp = re.sub(r'(?ms)^\w+ \{\n.*?^\}\n', fix, bp)
+              bp = BLOCK.sub(fix_cycle, bp)
+
+          # 3) Kati: modulo do vendor com o mesmo nome de um modulo da arvore
+          if not changes and 'already defined by' in log:
+              owners, cur = {}, {}
+              soong_mk = max(glob.glob('out/soong/Android-*.mk'), key=os.path.getsize)
+              for line in open(soong_mk, errors='replace'):
+                  if line.startswith('include $(CLEAR_VARS)'):
+                      cur = {}
+                  elif line.startswith('LOCAL_PATH := '):
+                      cur['p'] = line.split(':=', 1)[1].strip()
+                  elif line.startswith('LOCAL_MODULE := '):
+                      cur['n'] = line.split(':=', 1)[1].strip()
+                  elif line.startswith('LOCAL_MODULE_CLASS := '):
+                      cur['c'] = line.split(':=', 1)[1].strip()
+                  elif line.startswith('LOCAL_IS_HOST_MODULE := true'):
+                      cur['h'] = 1
+                  elif line.startswith('include ') and 'n' in cur and 'p' in cur:
+                      if not cur.get('h'):
+                          owners.setdefault((cur.get('c', ''), cur['n']), set()).add(cur['p'])
+                      cur = {}
+              ren = {n: n + '_vendor' for (c, n), ps in owners.items() if len(ps) > 1 and VEN in ps}
+              def rename(m):
+                  blk = m.group(0)
+                  nm = re.search(r'(?m)^    name: "([^"]+)",\n', blk)
+                  if nm and nm.group(1) in ren:
+                      n = nm.group(1)
+                      new = '    name: "%s",\n' % ren[n]
+                      if blk.startswith('cc_') and not re.search(r'(?m)^    stem:', blk):
+                          new += '    stem: "%s",\n' % n
+                      blk = blk.replace(nm.group(0), new, 1)
+                  return LISTS.sub(lambda pm: pm.group(1) + re.sub(r'"([^"]+)"', lambda q: '"%s"' % ren.get(q.group(1), q.group(1)), pm.group(2)) + ']', blk)
+              if ren:
+                  bp = BLOCK.sub(rename, bp)
+                  for n, r in sorted(ren.items()):
+                      mk = re.sub(r'(?m)^(\s+)' + re.escape(n) + r'(\s*\\?)$', r'\g<1>' + r + r'\g<2>', mk)
+                      changes.append('rename\t%s -> %s' % (n, r))
+
           if not changes:
               sys.exit(2)
           open(BP, 'w').write(bp)
+          open(MK, 'w').write(mk)
           open(OUT, 'a').write('\n'.join(changes) + '\n')
           print('\n'.join(changes))
           PY
@@ -102,17 +148,17 @@ jobs:
           source build/envsetup.sh
           lunch lineage_hawaiip-userdebug
           : > ~/ci-logs/pruned_deps.txt
-          for i in $(seq 1 60); do
+          for i in $(seq 1 8); do
             if m nothing > ~/ci-logs/analysis.log 2>&1; then
               echo "Analise OK na iteracao $i"
-              echo "Podado so na copia do runner (tipo / item):"
+              echo "Alterado so na copia do runner (tipo / item):"
               cat ~/ci-logs/pruned_deps.txt
               exit 0
             fi
             echo "[$i]"
             python3 ~/prune_step.py && rc=0 || rc=$?
             if [ "$rc" != "0" ]; then
-              echo "Parando (codigo $rc). Erros do Soong:"
+              echo "Parando (codigo $rc). Erros:"
               grep -n "error" ~/ci-logs/analysis.log | head -n 40 || true
               tail -n 30 ~/ci-logs/analysis.log
               exit 1
@@ -121,7 +167,7 @@ jobs:
           echo "Limite de iteracoes atingido"
           tail -n 30 ~/ci-logs/analysis.log
           exit 1
-
+          
       - name: Start Compilation
         timeout-minutes: 240
         run: |
