@@ -46,7 +46,7 @@ jobs:
         if: ${{ inputs.maximize_space }}
         uses: easimon/maximize-build-space@master
         with:
-          root-reserve-mb: 2048
+          root-reserve-mb: 15360 # Reserva 15 GB livres na raiz para evitar o estouro de 100%
           temp-reserve-mb: 100
           swap-size-mb: 8192
           build-mount-path: /home/runner/build
@@ -57,9 +57,13 @@ jobs:
           remove-codeql: 'true'
           remove-docker-images: 'true'
 
+      - name: Preparar diretorios temporarios no volume de build
+        run: |
+          mkdir -p /home/runner/build/tmp /home/runner/build/bin /home/runner/build/.cache
+          chmod 777 /home/runner/build/tmp
+
       - name: Instalar a ferramenta repo
         run: |
-          mkdir -p /home/runner/build/bin
           curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo > /home/runner/build/bin/repo
           chmod a+x /home/runner/build/bin/repo
           sudo ln -sf /home/runner/build/bin/repo /usr/local/bin/repo
@@ -85,9 +89,12 @@ jobs:
           LINEAGE_BRANCH: ${{ inputs.lineage_branch }}
           HOME: /home/runner/build
           XDG_CACHE_HOME: /home/runner/build/.cache
+          TMPDIR: /home/runner/build/tmp
+          TEMP: /home/runner/build/tmp
+          TMP: /home/runner/build/tmp
         run: |
           set -euo pipefail
-          mkdir -p "$ROM_DIR" /home/runner/build/.cache
+          mkdir -p "$ROM_DIR"
           cd "$ROM_DIR"
 
           repo init -u https://github.com/LineageOS/android.git -b "$LINEAGE_BRANCH" --depth=1 --git-lfs
@@ -96,7 +103,7 @@ jobs:
 
           rm -f .repo/local_manifests/replace.xml
 
-          repo manifest -o /tmp/resolved-manifest.xml
+          repo manifest -o "$TMPDIR/resolved-manifest.xml"
 
           ok=0
           for i in 1 2 3; do
@@ -108,13 +115,13 @@ jobs:
             sleep 30
           done
           [ "$ok" = 1 ] || { echo "repo sync falhou nas 3 tentativas"; exit 1; }
-          df -h "$BUILD_ROOT"
+          df -h
 
           ( cd device/phh/treble && bash generate.sh vendor/lineage/config/common_full_phone.mk )
 
           echo "Apagando .repo para liberar espaco..."
           rm -rf .repo
-          df -h "$BUILD_ROOT"
+          df -h
 
       - name: Compilar a GSI
         timeout-minutes: 235
@@ -122,6 +129,9 @@ jobs:
           LUNCH_TARGET: ${{ inputs.lunch_target }}
           HOME: /home/runner/build
           XDG_CACHE_HOME: /home/runner/build/.cache
+          TMPDIR: /home/runner/build/tmp
+          TEMP: /home/runner/build/tmp
+          TMP: /home/runner/build/tmp
         run: |
           set -o pipefail
           mkdir -p "$LOG_DIR" "$CCACHE_DIR"
