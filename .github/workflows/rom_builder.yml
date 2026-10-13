@@ -55,8 +55,8 @@ jobs:
           rm -rf .repo
           df -h
 
-      - name: Analyze tree (poda dependencias so no runner)
-        timeout-minutes: 40
+      - name: Analyze tree (ajustes so no runner)
+        timeout-minutes: 60
         run: |
           mkdir -p ~/ci-logs
           cat > ~/prune_step.py <<'PY'
@@ -69,12 +69,39 @@ jobs:
           MK = VEN + '/hawaiip-vendor.mk'
           BASIC = {'libc', 'libm', 'libdl', 'libutils', 'libcutils', 'liblog', 'libbase', 'libhidlbase', 'libbinder'}
           BLOCK = re.compile(r'(?ms)^\w+ \{\n.*?^\}\n')
-          LISTS = re.compile(r'(?s)(\b(?:shared_libs|static_libs|runtime_libs|required): \[)(.*?)\]')
 
           log = open(LOG, errors='replace').read()
           bp = open(BP).read()
           mk = open(MK).read()
           changes = []
+
+
+          def drop(name):
+              global bp, mk
+              srcs = []
+
+              def f(m):
+                  blk = m.group(0)
+                  nm = re.search(r'(?m)^    name: "([^"]+)",', blk)
+                  if nm and nm.group(1) == name:
+                      srcs.extend(re.findall(r'"proprietary/([^"]+)"', blk))
+                      return ''
+                  return blk
+
+              new = BLOCK.sub(f, bp)
+              if new == bp:
+                  return
+              bp = new
+              out = []
+              for line in mk.split('\n'):
+                  if line.strip().rstrip('\\').strip() == name:
+                      if not line.rstrip().endswith('\\') and out and out[-1].rstrip().endswith('\\'):
+                          out[-1] = out[-1].rstrip()[:-1].rstrip()
+                      continue
+                  out.append(line)
+              mk = '\n'.join(out)
+              changes.append('drop\t%s\t%s' % (name, ','.join(sorted(set(srcs)))))
+
 
           # 1) Soong: dependencia indefinida
           undefined = sorted(set(re.findall(r'depends on undefined module "([^"]+)"', log)))
@@ -87,6 +114,8 @@ jobs:
 
           # 2) Soong: ciclo de dependencia
           edges = {(a, b) for a, b in re.findall(r'module "([^"]+)" variant "[^"]*" depends on module "([^"]+)" variant "[^"]*"', log) if a != b}
+
+
           def fix_cycle(m):
               blk = m.group(0)
               nm = re.search(r'(?m)^    name: "([^"]+)"', blk)
@@ -95,47 +124,41 @@ jobs:
                       if nm.group(1) == a:
                           new = re.sub(r'(?m)^[ \t]*"' + re.escape(b) + r'",\n', '', blk)
                           if new != blk:
-                              changes.append('cycle\t' + a + ' -> ' + b)
+                              changes.append('cycle\t%s -> %s' % (a, b))
                               blk = new
               return blk
+
+
           if edges:
               bp = BLOCK.sub(fix_cycle, bp)
 
           # 3) Kati: modulo do vendor com o mesmo nome de um modulo da arvore
           if not changes and 'already defined by' in log:
+              names = set()
+              for p1, nm, p2 in re.findall(r'error: (\S+): MODULE\.TARGET\.\w+\.(\S+) already defined by (\S+?)\.?\s*$', log, re.M):
+                  if VEN in (p1, p2):
+                      names.add(nm)
               owners, cur = {}, {}
-              soong_mk = max(glob.glob('out/soong/Android-*.mk'), key=os.path.getsize)
-              for line in open(soong_mk, errors='replace'):
-                  if line.startswith('include $(CLEAR_VARS)'):
-                      cur = {}
-                  elif line.startswith('LOCAL_PATH := '):
-                      cur['p'] = line.split(':=', 1)[1].strip()
-                  elif line.startswith('LOCAL_MODULE := '):
-                      cur['n'] = line.split(':=', 1)[1].strip()
-                  elif line.startswith('LOCAL_MODULE_CLASS := '):
-                      cur['c'] = line.split(':=', 1)[1].strip()
-                  elif line.startswith('LOCAL_IS_HOST_MODULE := true'):
-                      cur['h'] = 1
-                  elif line.startswith('include ') and 'n' in cur and 'p' in cur:
-                      if not cur.get('h'):
-                          owners.setdefault((cur.get('c', ''), cur['n']), set()).add(cur['p'])
-                      cur = {}
-              ren = {n: n + '_vendor' for (c, n), ps in owners.items() if len(ps) > 1 and VEN in ps}
-              def rename(m):
-                  blk = m.group(0)
-                  nm = re.search(r'(?m)^    name: "([^"]+)",\n', blk)
-                  if nm and nm.group(1) in ren:
-                      n = nm.group(1)
-                      new = '    name: "%s",\n' % ren[n]
-                      if blk.startswith('cc_') and not re.search(r'(?m)^    stem:', blk):
-                          new += '    stem: "%s",\n' % n
-                      blk = blk.replace(nm.group(0), new, 1)
-                  return LISTS.sub(lambda pm: pm.group(1) + re.sub(r'"([^"]+)"', lambda q: '"%s"' % ren.get(q.group(1), q.group(1)), pm.group(2)) + ']', blk)
-              if ren:
-                  bp = BLOCK.sub(rename, bp)
-                  for n, r in sorted(ren.items()):
-                      mk = re.sub(r'(?m)^(\s+)' + re.escape(n) + r'(\s*\\?)$', r'\g<1>' + r + r'\g<2>', mk)
-                      changes.append('rename\t%s -> %s' % (n, r))
+              mks = glob.glob('out/soong/Android-*.mk')
+              if mks:
+                  for line in open(max(mks, key=os.path.getsize), errors='replace'):
+                      if line.startswith('include $(CLEAR_VARS)'):
+                          cur = {}
+                      elif line.startswith('LOCAL_PATH := '):
+                          cur['p'] = line.split(':=', 1)[1].strip()
+                      elif line.startswith('LOCAL_MODULE := '):
+                          cur['n'] = line.split(':=', 1)[1].strip()
+                      elif line.startswith('LOCAL_MODULE_CLASS := '):
+                          cur['c'] = line.split(':=', 1)[1].strip()
+                      elif line.startswith('LOCAL_IS_HOST_MODULE := true'):
+                          cur['h'] = 1
+                      elif line.startswith('include ') and 'n' in cur and 'p' in cur:
+                          if not cur.get('h'):
+                              owners.setdefault((cur.get('c', ''), cur['n']), set()).add(cur['p'])
+                          cur = {}
+              names |= {n for (c, n), ps in owners.items() if len(ps) > 1 and VEN in ps}
+              for n in sorted(names):
+                  drop(n)
 
           if not changes:
               sys.exit(2)
@@ -148,7 +171,7 @@ jobs:
           source build/envsetup.sh
           lunch lineage_hawaiip-userdebug
           : > ~/ci-logs/pruned_deps.txt
-          for i in $(seq 1 8); do
+          for i in $(seq 1 12); do
             if m nothing > ~/ci-logs/analysis.log 2>&1; then
               echo "Analise OK na iteracao $i"
               echo "Alterado so na copia do runner (tipo / item):"
