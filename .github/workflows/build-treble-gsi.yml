@@ -42,6 +42,36 @@ jobs:
           sudo apt-get -o Acquire::Languages=none update
           sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git git-lfs gnupg gperf imagemagick lib32ncurses5-dev lib32z1-dev libelf-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush python3 python-is-python3 rsync schedtool squashfs-tools xsltproc xz-utils yasm zip unzip zlib1g-dev
 
+      - name: Maximizar espaco de build e criar swap
+        if: ${{ inputs.maximize_space }}
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 2048
+          temp-reserve-mb: 100
+          swap-size-mb: 8192
+          build-mount-path: /home/runner/build
+          build-mount-path-ownership: runner:runner
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
+      - name: Migrar HOME para a particao de build (104GB)
+        run: |
+          # Cria a nova estrutura HOME dentro do disco grande
+          mkdir -p /home/runner/build/home
+          
+          # Move arquivos de configuração essenciais se existirem
+          cp -r ~/.gitconfig ~/.ssh /home/runner/build/home/ 2>/dev/null || true
+          
+          # Substitui a pasta HOME do sistema por um link simbólico apontando para o disco de build
+          sudo sed -i 's|/home/runner:|/home/runner/build/home:|g' /etc/passwd
+          export HOME=/home/runner/build/home
+          
+          echo "HOME atualizado para: $HOME"
+          df -h
+
       - name: Instalar a ferramenta repo
         run: |
           mkdir -p ~/bin
@@ -55,36 +85,6 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git lfs install
 
-      - name: Maximizar espaco de build e criar swap
-        if: ${{ inputs.maximize_space }}
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 4096
-          temp-reserve-mb: 100
-          swap-size-mb: 8192
-          build-mount-path: /home/runner/build
-          build-mount-path-ownership: runner:runner
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
-
-      - name: Alternativa - swap simples
-        if: ${{ !inputs.maximize_space }}
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 12
-
-      - name: Alternativa - criar pasta de build no disco raiz
-        if: ${{ !inputs.maximize_space }}
-        run: sudo install -d -o runner -g runner /home/runner/build
-
-      - name: Mostrar espaco e memoria disponiveis
-        run: |
-          df -h
-          free -h
-
       - name: Restaurar cache do ccache
         id: ccache_restore
         uses: actions/cache/restore@v4
@@ -95,8 +95,7 @@ jobs:
             ccache-${{ inputs.lineage_branch }}-
 
       - name: Inicializar repo, adicionar manifesto TrebleDroid e sincronizar
-        timeout-minutes: 80
-        working-directory: /home/runner/build
+        timeout-minutes: 120
         env:
           LINEAGE_BRANCH: ${{ inputs.lineage_branch }}
         run: |
@@ -132,7 +131,6 @@ jobs:
 
       - name: Compilar a GSI
         timeout-minutes: 235
-        working-directory: /home/runner/build
         env:
           LUNCH_TARGET: ${{ inputs.lunch_target }}
         run: |
@@ -164,7 +162,7 @@ jobs:
             echo "save=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Salvar cache do ccache (mesmo se o build falhar ou estourar o tempo)
+      - name: Salvar cache do ccache
         if: always() && steps.ccache_size.outputs.save == 'true'
         uses: actions/cache/save@v4
         with:
@@ -173,7 +171,6 @@ jobs:
 
       - name: Compactar a system.img
         if: success()
-        working-directory: /home/runner/build
         env:
           LINEAGE_BRANCH: ${{ inputs.lineage_branch }}
           LUNCH_TARGET: ${{ inputs.lunch_target }}
