@@ -252,7 +252,7 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p ~/ci-logs/vendor-pruned
-          cp ~/rom/vendor/motorola/hawaiip/Android.bp ~/rom/vendor/motorola/hawaiip/hawaiip-vendor.mk ~/ci-logs/vendor-pruned/    
+          cp ~/rom/vendor/motorola/hawaiip/Android.bp ~/rom/vendor/motorola/hawaiip/hawaiip-vendor.mk ~/ci-logs/vendor-pruned/
           
       - name: Start Compilation
         if: false
