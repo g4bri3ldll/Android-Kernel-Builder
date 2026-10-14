@@ -33,9 +33,10 @@ jobs:
 
       - name: Setup Local Repo Tool
         run: |
-          mkdir -p .repo/repo
-          curl https://storage.googleapis.com/git-repo-downloads/repo > .repo/repo/repo
-          chmod +x .repo/repo/repo
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod +x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
 
       - name: Configure Git Identity
         run: |
@@ -49,10 +50,6 @@ jobs:
           repo init -u https://github.com/LineageOS/android.git -b lineage-19.1 --depth=1 --git-lfs
           git clone https://github.com/g4bri3ldll/android_manifest_hawaiip .repo/local_manifests
           repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j4 --fail-fast
-          
-          echo "Apagando .repo para liberar espaço..."
-          rm -rf .repo
-          df -h
 
       - name: Patch BoardConfig (so no runner, em teste)
         run: |
