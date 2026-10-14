@@ -47,7 +47,7 @@ jobs:
         run: |
           mkdir -p ~/rom
           cd ~/rom
-          repo init -u https://github.com/LineageOS/android.git -b lineage-19.1 --depth=1 --git-lfs
+          repo init -u https://github.com/LineageOS/android.git -b lineage-19.0 --depth=1 --git-lfs
           git clone https://github.com/g4bri3ldll/android_manifest_hawaiip .repo/local_manifests
           repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j4 --fail-fast
 
