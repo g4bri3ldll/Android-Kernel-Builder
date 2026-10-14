@@ -51,23 +51,6 @@ jobs:
           git clone https://github.com/g4bri3ldll/android_manifest_hawaiip .repo/local_manifests
           repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j4 --fail-fast
 
-      - name: Patch BoardConfig (so no runner, em teste)
-        run: |
-          cd ~/rom/device/motorola/hawaiip
-          sed -i '/^    vbmeta_system \\$/d;/^    vbmeta_vendor \\$/d' BoardConfig.mk
-          cat >> BoardConfig.mk <<'EOF'
-
-          # Particoes dinamicas: system, vendor e product como imagens separadas
-          BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE := ext4
-          BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
-          BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE := ext4
-          TARGET_COPY_OUT_VENDOR := vendor
-          TARGET_COPY_OUT_PRODUCT := product
-          EOF
-          for p in system_ext odm odm_dlkm vendor_dlkm; do [ -f "$p.prop" ] || : > "$p.prop"; done
-          grep -nE "vbmeta|FILE_SYSTEM_TYPE|COPY_OUT" BoardConfig.mk
-          ls *.prop    
-
       - name: Analyze tree (ajustes so no runner)
         timeout-minutes: 150
         run: |
@@ -285,6 +268,7 @@ jobs:
             ccache-hawaiip-
 
       - name: Start Compilation
+        if: false
         timeout-minutes: 200
         run: |
           mkdir -p ~/ci-logs
