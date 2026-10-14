@@ -55,6 +55,23 @@ jobs:
           rm -rf .repo
           df -h
 
+      - name: Patch BoardConfig (so no runner, em teste)
+        run: |
+          cd ~/rom/device/motorola/hawaiip
+          sed -i '/^    vbmeta_system \\$/d;/^    vbmeta_vendor \\$/d' BoardConfig.mk
+          cat >> BoardConfig.mk <<'EOF'
+
+          # Particoes dinamicas: system, vendor e product como imagens separadas
+          BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE := ext4
+          BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
+          BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE := ext4
+          TARGET_COPY_OUT_VENDOR := vendor
+          TARGET_COPY_OUT_PRODUCT := product
+          EOF
+          for p in system_ext odm odm_dlkm vendor_dlkm; do [ -f "$p.prop" ] || : > "$p.prop"; done
+          grep -nE "vbmeta|FILE_SYSTEM_TYPE|COPY_OUT" BoardConfig.mk
+          ls *.prop    
+
       - name: Analyze tree (ajustes so no runner)
         timeout-minutes: 150
         run: |
@@ -247,6 +264,15 @@ jobs:
           tail -n 30 ~/ci-logs/analysis.log
           exit 1
 
+      - name: Check partition layout
+        run: |
+          cd ~/rom
+          source build/envsetup.sh
+          lunch lineage_hawaiip-userdebug > /dev/null
+          for v in TARGET_COPY_OUT_SYSTEM TARGET_COPY_OUT_VENDOR TARGET_COPY_OUT_PRODUCT TARGET_COPY_OUT_SYSTEM_EXT TARGET_COPY_OUT_ODM PRODUCT_USE_DYNAMIC_PARTITIONS PRODUCT_VIRTUAL_AB_OTA; do
+            echo "$v=$(get_build_var $v)"
+          done    
+
       - name: Save pruned vendor files
         if: always()
         continue-on-error: true
@@ -254,14 +280,27 @@ jobs:
           mkdir -p ~/ci-logs/vendor-pruned
           cp ~/rom/vendor/motorola/hawaiip/Android.bp ~/rom/vendor/motorola/hawaiip/hawaiip-vendor.mk ~/ci-logs/vendor-pruned/
           
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-hawaiip-${{ github.run_id }}
+          restore-keys: |
+            ccache-hawaiip-
+
       - name: Start Compilation
-        if: false
-        timeout-minutes: 180
+        timeout-minutes: 200
         run: |
           mkdir -p ~/ci-logs
           cd ~/rom
+          export USE_CCACHE=1
+          export CCACHE_EXEC=/usr/bin/ccache
+          export CCACHE_DIR=$HOME/.ccache
+          export CCACHE_COMPRESS=1
+          ccache -M 6G
           source build/envsetup.sh
           lunch lineage_hawaiip-userdebug
+          df -h /
           set -o pipefail
           mka bacon -j$(nproc --all) 2>&1 | tee ~/ci-logs/build.log
 
