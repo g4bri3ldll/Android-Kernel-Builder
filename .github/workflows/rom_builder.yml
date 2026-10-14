@@ -1,4 +1,4 @@
-name: Build LineageOS 19.1 for Moto G22
+name: Build LineageOS 19.0 for Moto G22
 
 on:
   workflow_dispatch:
@@ -52,6 +52,7 @@ jobs:
           repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j4 --fail-fast
 
       - name: Analyze tree (ajustes so no runner)
+        if: false
         timeout-minutes: 150
         run: |
           mkdir -p ~/ci-logs
@@ -268,7 +269,6 @@ jobs:
             ccache-hawaiip-
 
       - name: Start Compilation
-        if: false
         timeout-minutes: 200
         run: |
           mkdir -p ~/ci-logs
