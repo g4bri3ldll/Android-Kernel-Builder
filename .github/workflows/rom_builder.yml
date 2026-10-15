@@ -107,6 +107,11 @@ jobs:
         run: |
           mkdir -p ~/ci-logs/vendor-pruned
           cp ~/rom/vendor/motorola/hawaiip/Android.bp ~/rom/vendor/motorola/hawaiip/hawaiip-vendor.mk ~/ci-logs/vendor-pruned/
+
+      - name: Patch Codec2 Missing Include
+        run: |
+          cd ~/rom
+          sed -i '/name: "libcodec2_hidl@1.0"/,/^}/ { /local_include_dirs:/b; /srcs:/i \    local_include_dirs: [\n        "../../plugin/internal",\n    ],' frameworks/av/media/codec2/hidl/1.0/utils/Android.bp    
           
       - name: Start Compilation
         timeout-minutes: 200
