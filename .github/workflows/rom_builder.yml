@@ -278,7 +278,7 @@ jobs:
         run: |
           mkdir -p ~/ci-logs
           cd ~/rom
-          export USE_CCACHE=1
+          export USE_CCACHE=0
           export CCACHE_EXEC=/usr/bin/ccache
           export CCACHE_DIR=$HOME/.ccache
           export CCACHE_COMPRESS=1
