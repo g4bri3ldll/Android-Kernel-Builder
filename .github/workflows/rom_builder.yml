@@ -75,25 +75,23 @@ jobs:
           rm -rf prebuilts/gcc/linux-x86/host/ || true
           rm -rf prebuilts/clang/host/linux-x86/3.28.0/ || true
 
-          # 2. Remover SDK Tools, NDKs e binários de emulação
-          rm -rf prebuilts/sdk/tools/ || true
+          # ATENÇÃO: PREBUILTS/SDK/TOOLS MANTIDO (O core-lambda-stubs.jar é obrigatório!)
+          # rm -rf prebuilts/sdk/tools/ || true  <-- Removido daqui
+
+          # 2. Remover SDK Tools desnecessários que não quebram o build (mantendo o que precisa)
           rm -rf prebuilts/sdk/emulator/ || true
           rm -rf prebuilts/android-emulator/ || true
 
-          # 3. ATENÇÃO: PREBUILTS/GO MANTIDO (O Android.bp precisa dele para compilar)
-          # rm -rf prebuilts/go/ || true  <-- Removido daqui para não quebrar o build!
-
-          # 4. Limpar o cache pesado do utilitário .repo (já que o sync terminou)
+          # 3. Limpar o cache pesado do utilitário .repo (já que o sync terminou)
           rm -rf .repo/repo/ || true
           rm -rf .repo/clone_depths/ || true
           rm -rf .repo/project-objects/ || true
 
-          # 5. Apagar pastas .git dos subdiretórios (libera múltiplos GB de histórico)
+          # 4. Apagar pastas .git dos subdiretórios (libera múltiplos GB de histórico)
           find . -mindepth 2 -type d -name ".git" -exec rm -rf {} + || true
 
           echo "=== ESPAÇO FINAL DISPONÍVEL ANTES DE COMPILAR ==="
           df -h /
-
           
       - name: Check partition layout
         run: |
