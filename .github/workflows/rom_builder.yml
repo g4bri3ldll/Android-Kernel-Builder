@@ -65,6 +65,36 @@ jobs:
           echo "Tamanho ocupado pela pasta do código (~/rom):"
           du -sh ~/rom
 
+      - name: Prune Unused Source & Toolchains (Max Space Saver)
+        run: |
+          cd ~/rom
+          echo "=== ESPAÇO ANTES DA LIMPEZA DO REPO ==="
+          df -h /
+
+          # 1. Remover toolchains GCC e Clang de host/x86 que o target ARM64 não usa
+          rm -rf prebuilts/gcc/linux-x86/host/ || true
+          rm -rf prebuilts/clang/host/linux-x86/3.28.0/ || true
+
+          # 2. Remover SDK Tools, NDKs e binários de emulação
+          rm -rf prebuilts/sdk/tools/ || true
+          rm -rf prebuilts/sdk/emulator/ || true
+          rm -rf prebuilts/android-emulator/ || true
+
+          # 3. Remover fontes de linguagens e ferramentas não utilizadas no build Android
+          rm -rf prebuilts/go/ || true
+          rm -rf prebuilts/rust/ || true
+
+          # 4. Limpar o cache pesado do utilitário .repo (já que o sync terminou)
+          rm -rf .repo/repo/ || true
+          rm -rf .repo/clone_depths/ || true
+          rm -rf .repo/project-objects/ || true
+
+          # 5. Apagar pastas .git dos subdiretórios (libera múltiplos GB de histórico)
+          find . -mindepth 2 -type d -name ".git" -exec rm -rf {} + || true
+
+          echo "=== ESPAÇO FINAL DISPONÍVEL ANTES DE COMPILAR ==="
+          df -h /
+          
       - name: Check partition layout
         run: |
           cd ~/rom
