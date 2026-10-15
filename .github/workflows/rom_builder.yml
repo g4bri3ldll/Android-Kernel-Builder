@@ -23,7 +23,6 @@ jobs:
           sudo rm -rf /opt/google/chrome
           sudo rm -rf /usr/lib/google-cloud-sdk
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          sudo apt-get purge -y azure-cli google-cloud-cli 2>/dev/null || true
           sudo apt-get clean
           docker image prune -af 2>/dev/null || true
           echo "=== ESPAÇO APÓS LIMPEZA EXTREMA ==="
