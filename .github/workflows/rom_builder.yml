@@ -71,14 +71,13 @@ jobs:
           echo "=== ESPAÇO ANTES DA LIMPEZA DO REPO ==="
           df -h /
 
-          # 1. Remover toolchains GCC e Clang de host/x86 que o target ARM64 não usa
-          rm -rf prebuilts/gcc/linux-x86/host/ || true
+          # ATENÇÃO: PREBUILTS/GCC/LINUX-X86/HOST/ MANTIDO (Contém o MinGW necessário para ferramentas Windows)
+          # rm -rf prebuilts/gcc/linux-x86/host/ || true <-- Removido para evitar erro de libwinpthread
+
+          # 1. Remover toolchains Clang de host desnecessárias
           rm -rf prebuilts/clang/host/linux-x86/3.28.0/ || true
 
-          # ATENÇÃO: PREBUILTS/SDK/TOOLS MANTIDO (O core-lambda-stubs.jar é obrigatório!)
-          # rm -rf prebuilts/sdk/tools/ || true  <-- Removido daqui
-
-          # 2. Remover SDK Tools desnecessários que não quebram o build (mantendo o que precisa)
+          # 2. Remover SDK Tools e emuladores que não quebram o build (mantendo o core-lambda-stubs)
           rm -rf prebuilts/sdk/emulator/ || true
           rm -rf prebuilts/android-emulator/ || true
 
