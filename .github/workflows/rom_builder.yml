@@ -112,22 +112,31 @@ jobs:
         run: |
           cd ~/rom
           python3 -c '
-          import re
           path = "frameworks/av/media/codec2/hidl/1.0/utils/Android.bp"
           with open(path, "r") as f:
-              content = f.read()
+          lines = f.readlines()
 
-          pattern = r"(name:\s*\"libcodec2_hidl@1.0\"[^}]*?)(\s*srcs:\s*\[)"
-          replacement = r"\1\n    local_include_dirs: [\n        \"../../plugin/internal\",\n    ],\n\2"
-          new_content, count = re.subn(pattern, replacement, content, flags=re.DOTALL)
+          new_lines = []
+          in_target = False
+          patched = False
 
-          if count > 0:
-              with open(path, "w") as f:
-                  f.write(new_content)
-              print("Successfully patched Android.bp!")
+          for line in lines:
+            new_lines.append(line)
+          if "name: \"libcodec2_hidl@1.0\"" in line:
+            in_target = True
+          elif in_target and "srcs: [" in line and not patched:
+            new_lines.append("    local_include_dirs: [\n")
+            new_lines.append("        \"../../plugin/internal\",\n")
+            new_lines.append("    ],\n")
+            patched = True
+
+          if patched:
+            with open(path, "w") as f:
+            f.writelines(new_lines)
+          print("Successfully patched Android.bp line-by-line!")
           else:
-              print("Error: Target not found!")
-              exit(1)
+            print("Error: Target block not found!")
+            exit(1)
           '
       
       - name: Start Compilation
