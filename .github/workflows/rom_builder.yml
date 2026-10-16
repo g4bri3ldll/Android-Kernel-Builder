@@ -121,7 +121,7 @@ jobs:
           python3 ~/shadow_check.py    
 
       - name: Analyze tree (ajustes so no runner)
-        timeout-minutes: 150
+        timeout-minutes: 10
         run: |
           mkdir -p ~/ci-logs
           cat > ~/prune_step.py <<'PY'
@@ -356,7 +356,6 @@ jobs:
           cp ~/rom/vendor/motorola/hawaiip/Android.bp ~/rom/vendor/motorola/hawaiip/hawaiip-vendor.mk ~/ci-logs/vendor-pruned/
 
       - name: Start Compilation
-        timeout-minutes: 200
         run: |
           mkdir -p ~/ci-logs
           cd ~/rom
