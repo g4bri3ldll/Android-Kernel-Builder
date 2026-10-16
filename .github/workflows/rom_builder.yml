@@ -121,7 +121,7 @@ jobs:
           python3 ~/shadow_check.py    
 
       - name: Analyze tree (ajustes so no runner)
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           mkdir -p ~/ci-logs
           cat > ~/prune_step.py <<'PY'
