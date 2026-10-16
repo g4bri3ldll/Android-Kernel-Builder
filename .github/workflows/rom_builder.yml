@@ -108,37 +108,6 @@ jobs:
           mkdir -p ~/ci-logs/vendor-pruned
           cp ~/rom/vendor/motorola/hawaiip/Android.bp ~/rom/vendor/motorola/hawaiip/hawaiip-vendor.mk ~/ci-logs/vendor-pruned/
 
-      - name: Patch Codec2 Missing Include
-        run: |
-          cd ~/rom
-          python3 -c '
-          path = "frameworks/av/media/codec2/hidl/1.0/utils/Android.bp"
-          with open(path, "r") as f:
-          lines = f.readlines()
-
-          new_lines = []
-          in_target = False
-          patched = False
-
-          for line in lines:
-            new_lines.append(line)
-          if "name: \"libcodec2_hidl@1.0\"" in line:
-            in_target = True
-          elif in_target and "srcs: [" in line and not patched:
-            new_lines.append("    local_include_dirs: [\n")
-            new_lines.append("        \"../../plugin/internal\",\n")
-            new_lines.append("    ],\n")
-            patched = True
-
-          if patched:
-            with open(path, "w") as f:
-            f.writelines(new_lines)
-          print("Successfully patched Android.bp line-by-line!")
-          else:
-            print("Error: Target block not found!")
-            exit(1)
-          '
-      
       - name: Start Compilation
         timeout-minutes: 200
         run: |
