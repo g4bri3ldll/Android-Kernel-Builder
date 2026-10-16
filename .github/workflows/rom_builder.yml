@@ -65,27 +65,6 @@ jobs:
           echo "Tamanho ocupado pela pasta do código (~/rom):"
           du -sh ~/rom
 
-      - name: Diagnose codec2 plugin
-        run: |
-          set +e
-          mkdir -p ~/ci-logs
-          cd ~/rom
-          {
-            echo "== frameworks/av =="
-            git -C frameworks/av log -1 --format='%h %s' 2>&1
-            git -C frameworks/av remote -v 2>&1 | head -2
-            echo "== plugin/internal =="
-            ls -la frameworks/av/media/codec2/hidl/plugin/internal/ 2>&1
-            echo "== refs ao plugin no Android.bp =="
-            grep -n "plugin" frameworks/av/media/codec2/hidl/1.0/utils/Android.bp 2>&1
-            echo "== quem define esses modulos =="
-            grep -rn --include=Android.bp -E 'name: "libcodec2_hidl(@1\.[0-9]|_plugin(_stub)?)"' frameworks/av device vendor hardware 2>/dev/null
-            echo "== quem usa libcodec2_hidl no device/vendor =="
-            grep -rnE 'libcodec2_hidl' device vendor hardware --include=Android.bp --include='*.mk' 2>/dev/null
-            echo "== local manifest =="
-            grep -n -E 'frameworks_av|frameworks/av|remove-project' .repo/local_manifests/*.xml 2>&1
-          } 2>&1 | tee ~/ci-logs/codec2-diagnose.txt    
-
       - name: Prune Unused Source & Toolchains (Max Space Saver)
         run: |
           cd ~/rom
@@ -128,14 +107,6 @@ jobs:
         run: |
           mkdir -p ~/ci-logs/vendor-pruned
           cp ~/rom/vendor/motorola/hawaiip/Android.bp ~/rom/vendor/motorola/hawaiip/hawaiip-vendor.mk ~/ci-logs/vendor-pruned/
-
-      - name: Quick check (only failing module)
-        run: |
-          mkdir -p ~/ci-logs
-          cd ~/rom
-          source build/envsetup.sh
-          lunch lineage_hawaiip-userdebug
-          mka libcodec2_hidl@1.0 libcodec2_hidl_plugin -j$(nproc --all) 2>&1 | tee ~/ci-logs/quick.log    
 
       - name: Start Compilation
         timeout-minutes: 200
