@@ -65,6 +65,253 @@ jobs:
           echo "Tamanho ocupado pela pasta do código (~/rom):"
           du -sh ~/rom
 
+      - name: Shadow check (blobs que escondem modulos do AOSP)
+        run: |
+          mkdir -p ~/ci-logs
+          cat > ~/shadow_check.py <<'PY'
+          import os, re
+
+          TOP = os.path.expanduser('~/rom')
+          VEN = os.path.join(TOP, 'vendor/motorola/hawaiip')
+          DEV = os.path.join(TOP, 'device/motorola/hawaiip')
+          SKIP = {'out', '.repo', '.git'}
+          LISTS = re.compile(r'(?s)\b(?:shared_libs|static_libs|whole_static_libs|header_libs|runtime_libs|required)\s*:\s*\[(.*?)\]')
+          BLOCK = re.compile(r'(?ms)^\w+ \{\n.*?^\}\n')
+          NAME = re.compile(r'(?m)^    name: "([^"]+)",\n')
+          PREFER = re.compile(r'(?m)^    prefer: true,\n')
+
+          aosp_names, aosp_deps = set(), set()
+          for root, dirs, files in os.walk(TOP):
+              dirs[:] = [d for d in dirs if d not in SKIP]
+              if root.startswith((VEN, DEV)) or 'Android.bp' not in files:
+                  continue
+              t = open(os.path.join(root, 'Android.bp'), errors='replace').read()
+              aosp_names.update(re.findall(r'(?m)^\s*name:\s*"([^"]+)"', t))
+              for g in LISTS.findall(t):
+                  aosp_deps.update(re.findall(r'"([^"]+)"', g))
+
+          bpf = os.path.join(VEN, 'Android.bp')
+          bp = open(bpf).read()
+          mine = {}
+          for blk in BLOCK.findall(bp):
+              m = NAME.search(blk)
+              if m:
+                  mine[m.group(1)] = blk
+          shadow = sorted(n for n in mine if n in aosp_names)
+          needed = {n for n in shadow if n in aosp_deps}
+          fixed = []
+
+
+          def fix(m):
+              blk = m.group(0)
+              nm = NAME.search(blk)
+              if nm and nm.group(1) in needed and PREFER.search(blk):
+                  fixed.append(nm.group(1))
+                  return PREFER.sub('', blk)
+              return blk
+
+
+          open(bpf, 'w').write(BLOCK.sub(fix, bp))
+          rep = os.path.expanduser('~/ci-logs/shadowed.txt')
+          with open(rep, 'w') as f:
+              f.write('# mesmo nome de um modulo do AOSP (%d)\n%s\n\n' % (len(shadow), '\n'.join(shadow)))
+              f.write('# usados por modulos do AOSP, prefer:true removido (%d)\n%s\n' % (len(fixed), '\n'.join(sorted(fixed))))
+          print(open(rep).read())
+          PY
+          python3 ~/shadow_check.py    
+
+      - name: Analyze tree (ajustes so no runner)
+        timeout-minutes: 150
+        run: |
+          mkdir -p ~/ci-logs
+          cat > ~/prune_step.py <<'PY'
+          import glob, os, re, sys
+
+          LOG = os.path.expanduser('~/ci-logs/analysis.log')
+          OUT = os.path.expanduser('~/ci-logs/pruned_deps.txt')
+          VEN = 'vendor/motorola/hawaiip'
+          DEV = 'device/motorola/hawaiip'
+          BP = VEN + '/Android.bp'
+          MK = VEN + '/hawaiip-vendor.mk'
+          BASIC = {'libc', 'libm', 'libdl', 'libutils', 'libcutils', 'liblog', 'libbase', 'libhidlbase', 'libbinder'}
+          BLOCK = re.compile(r'(?ms)^\w+ \{\n.*?^\}\n')
+          NAME = re.compile(r'(?m)^    name: "([^"]+)",\n')
+          SRCS = re.compile(r'"proprietary/([^"]+)"')
+
+          PRE = len(sys.argv) > 1 and sys.argv[1] == '--pre'
+          log = '' if PRE else open(LOG, errors='replace').read()
+          bp = open(BP).read()
+          mk = open(MK).read()
+          changes = []
+
+
+          def drop(name):
+              global bp, mk
+              srcs = []
+
+              def f(m):
+                  blk = m.group(0)
+                  nm = NAME.search(blk)
+                  if nm and nm.group(1) == name:
+                      srcs.extend(SRCS.findall(blk))
+                      return ''
+                  return blk
+
+              new = BLOCK.sub(f, bp)
+              if new == bp:
+                  return
+              bp = new
+              out = []
+              for line in mk.split('\n'):
+                  if line.strip().rstrip('\\').strip() == name:
+                      if not line.rstrip().endswith('\\') and out and out[-1].rstrip().endswith('\\'):
+                          out[-1] = out[-1].rstrip()[:-1].rstrip()
+                      continue
+                  out.append(line)
+              mk = '\n'.join(out)
+              changes.append('drop\t%s\t%s' % (name, ','.join(sorted(set(srcs)))))
+
+
+          def drop_copies(pred):
+              global mk
+              out, gone = [], []
+              for line in mk.split('\n'):
+                  s = line.strip().rstrip('\\').strip()
+                  if ':' in s and pred(s):
+                      gone.append(s.split(':')[0].split('/proprietary/', 1)[-1])
+                      if not line.rstrip().endswith('\\') and out and out[-1].rstrip().endswith('\\'):
+                          out[-1] = out[-1].rstrip()[:-1].rstrip()
+                      continue
+                  out.append(line)
+              mk = '\n'.join(out)
+              return gone
+
+
+          # 0) Pre-passo: arquivos que o rootdir da device tree ja fornece saem da vendor tree
+          if PRE:
+              skip = {'Android.bp', 'Android.mk', 'README.md', '.gitignore'}
+              have = {x for _, _, fs in os.walk(DEV + '/rootdir') for x in fs} - skip
+              for g in drop_copies(lambda s: os.path.basename(s.split(':')[0]) in have):
+                  changes.append('rootdir-wins\tcopy\t' + g)
+              for blk in BLOCK.findall(bp):
+                  nm = NAME.search(blk)
+                  if nm and blk.startswith(('prebuilt_etc', 'sh_binary')) and any(os.path.basename(s) in have for s in SRCS.findall(blk)):
+                      drop(nm.group(1))
+              open(BP, 'w').write(bp)
+              open(MK, 'w').write(mk)
+              open(OUT, 'a').write(''.join(c + '\n' for c in changes))
+              print('\n'.join(changes) if changes else 'pre-passo: nada a ajustar')
+              sys.exit(0)
+
+          # 1) Soong: dependencia indefinida ou invisivel (poda so a referencia; o blob continua)
+          undefined = set(re.findall(r'depends on undefined module "([^"]+)"', log))
+          invisible = set(re.findall(r'depends on //[^:\s]+:(\S+) which is not visible to this module', log))
+          if BASIC & (undefined | invisible):
+              print('Dependencia basica com problema: ' + ', '.join(sorted(BASIC & (undefined | invisible))))
+              sys.exit(3)
+          for d in sorted(undefined | invisible):
+              bp = re.sub(r'(?m)^[ \t]*"' + re.escape(d) + r'",\n', '', bp)
+              changes.append('%s\t%s' % ('undefined' if d in undefined else 'invisible', d))
+
+          # 2) Soong: ciclo de dependencia
+          edges = {(a, b) for a, b in re.findall(r'module "([^"]+)" variant "[^"]*" depends on module "([^"]+)" variant "[^"]*"', log) if a != b}
+
+
+          def fix_cycle(m):
+              blk = m.group(0)
+              nm = NAME.search(blk)
+              if nm:
+                  for a, b in sorted(edges):
+                      if nm.group(1) == a:
+                          new = re.sub(r'(?m)^[ \t]*"' + re.escape(b) + r'",\n', '', blk)
+                          if new != blk:
+                              changes.append('cycle\t%s -> %s' % (a, b))
+                              blk = new
+              return blk
+
+
+          if edges:
+              bp = BLOCK.sub(fix_cycle, bp)
+
+          # 3) Kati: mesmo nome de modulo da arvore -> o AOSP fica com ele
+          if not changes and 'already defined by' in log:
+              names = set()
+              for p1, nm, p2 in re.findall(r'error: (\S+): MODULE\.TARGET\.\w+\.(\S+) already defined by (\S+?)\.?\s*$', log, re.M):
+                  if VEN in (p1, p2):
+                      names.add(nm)
+              owners, cur = {}, {}
+              mks = glob.glob('out/soong/Android-*.mk')
+              if mks:
+                  for line in open(max(mks, key=os.path.getsize), errors='replace'):
+                      if line.startswith('include $(CLEAR_VARS)'):
+                          cur = {}
+                      elif line.startswith('LOCAL_PATH := '):
+                          cur['p'] = line.split(':=', 1)[1].strip()
+                      elif line.startswith('LOCAL_MODULE := '):
+                          cur['n'] = line.split(':=', 1)[1].strip()
+                      elif line.startswith('LOCAL_MODULE_CLASS := '):
+                          cur['c'] = line.split(':=', 1)[1].strip()
+                      elif line.startswith('LOCAL_IS_HOST_MODULE := true'):
+                          cur['h'] = 1
+                      elif line.startswith('include ') and 'n' in cur and 'p' in cur:
+                          if not cur.get('h'):
+                              owners.setdefault((cur.get('c', ''), cur['n']), set()).add(cur['p'])
+                          cur = {}
+              names |= {n for (c, n), ps in owners.items() if len(ps) > 1 and VEN in ps}
+              for n in sorted(names):
+                  drop(n)
+
+          # 4) Kati: dois instaladores do mesmo arquivo -> modulo do vendor sai
+          if not changes:
+              for t in re.findall(r"overriding commands for target `([^']+)'", log):
+                  base = os.path.basename(t)
+                  for blk in BLOCK.findall(bp):
+                      nm = NAME.search(blk)
+                      if nm and any(os.path.basename(s) == base for s in SRCS.findall(blk)):
+                          drop(nm.group(1))
+
+          # 5) Kati: o mesmo destino por copia (PRODUCT_COPY_FILES) -> a copia do vendor sai
+          if not changes:
+              for t in re.findall(r"overriding commands for target `([^']+)'", log):
+                  tail = re.sub(r'^.*?/product/[^/]+/', '', t)
+                  tail = re.sub(r'^system/(?=vendor/|odm/|product/|system_ext/)', '', tail)
+                  part, _, rest = tail.partition('/')
+                  want = '$(TARGET_COPY_OUT_%s)/%s' % (part.upper(), rest)
+                  for g in drop_copies(lambda s: s.split(':', 1)[1] == want):
+                      changes.append('drop-copy\t' + g)
+
+          if not changes:
+              sys.exit(2)
+          open(BP, 'w').write(bp)
+          open(MK, 'w').write(mk)
+          open(OUT, 'a').write('\n'.join(changes) + '\n')
+          print('\n'.join(changes))
+          PY
+          cd ~/rom
+          source build/envsetup.sh
+          lunch lineage_hawaiip-userdebug
+          : > ~/ci-logs/pruned_deps.txt
+          python3 ~/prune_step.py --pre
+          for i in $(seq 1 40); do
+            if m nothing > ~/ci-logs/analysis.log 2>&1; then
+              echo "Analise OK na iteracao $i"
+              echo "Alterado so na copia do runner (tipo / item):"
+              cat ~/ci-logs/pruned_deps.txt
+              exit 0
+            fi
+            echo "[$i]"
+            python3 ~/prune_step.py && rc=0 || rc=$?
+            if [ "$rc" != "0" ]; then
+              echo "Parando (codigo $rc). Erros:"
+              grep -n "error" ~/ci-logs/analysis.log | head -n 40 || true
+              tail -n 30 ~/ci-logs/analysis.log
+              exit 1
+            fi
+          done
+          echo "Limite de iteracoes atingido"
+          tail -n 30 ~/ci-logs/analysis.log
+          exit 1    
+
       - name: Prune Unused Source & Toolchains (Max Space Saver)
         run: |
           cd ~/rom
@@ -118,7 +365,15 @@ jobs:
           echo "=== ESPAÇO EM DISCO EXATO ANTES DE COMPILAR ==="
           df -h /
           set -o pipefail
+          export NINJA_ARGS="-k 0"
           mka bacon -j$(nproc --all) 2>&1 | tee ~/ci-logs/build.log
+
+      - name: Summarize failures
+        if: always()
+        continue-on-error: true
+        run: |
+          [ -f ~/ci-logs/build.log ] || exit 0
+          grep -E "^FAILED:|fatal error:|error:|undefined reference" ~/ci-logs/build.log | head -n 80 | tee ~/ci-logs/failures.txt    
 
       - name: Post-build dependency check
         if: always()
