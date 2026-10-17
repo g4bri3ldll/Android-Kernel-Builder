@@ -30,10 +30,9 @@ jobs:
           sudo rm -rf /usr/local/share/powershell
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
           
-          # Limpeza profunda do apt e cache de pacotes
+          # Limpeza segura do apt e listas sem quebrar a estrutura de cache
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
-          sudo rm -rf /var/cache/
           
           # Limpeza do Docker, se houver resíduos
           docker image prune -af 2>/dev/null || true
