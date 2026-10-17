@@ -22,9 +22,22 @@ jobs:
           sudo rm -rf /usr/local/aws
           sudo rm -rf /opt/google/chrome
           sudo rm -rf /usr/lib/google-cloud-sdk
+          sudo rm -rf /usr/share/miniconda
+          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -rf /usr/local/share/vcpkg
+          sudo rm -rf /opt/pipx
+          sudo rm -rf /usr/local/julia
+          sudo rm -rf /usr/local/share/powershell
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          
+          # Limpeza profunda do apt e cache de pacotes
           sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /var/cache/
+          
+          # Limpeza do Docker, se houver resíduos
           docker image prune -af 2>/dev/null || true
+          
           echo "=== ESPAÇO APÓS LIMPEZA EXTREMA ==="
           df -h /
 
@@ -71,13 +84,10 @@ jobs:
           echo "=== ESPAÇO ANTES DA LIMPEZA DO REPO ==="
           df -h /
 
-          # ATENÇÃO: PREBUILTS/GCC/LINUX-X86/HOST/ MANTIDO (Contém o MinGW necessário para ferramentas Windows)
-          # rm -rf prebuilts/gcc/linux-x86/host/ || true <-- Removido para evitar erro de libwinpthread
-
           # 1. Remover toolchains Clang de host desnecessárias
           rm -rf prebuilts/clang/host/linux-x86/3.28.0/ || true
 
-          # 2. Remover SDK Tools e emuladores que não quebram o build (mantendo o core-lambda-stubs)
+          # 2. Remover SDK Tools e emuladores que não quebram o build
           rm -rf prebuilts/sdk/emulator/ || true
           rm -rf prebuilts/android-emulator/ || true
 
@@ -155,7 +165,7 @@ jobs:
                   for f in files:
                       p = os.path.join(root, f)
                       if os.path.isfile(p) and is_elf(p):
-                          for n in needed(p):
+                        for n in needed(p):
                               if n not in provided:
                                   missing[n].add(os.path.relpath(p, OUT))
           print(f'{len(missing)} libs pedidas por blobs do vendor e nao encontradas na build')
