@@ -10,9 +10,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Extreme Free Disk Space
+      - name: Extreme Free Disk Space & Purge Heavy Packages
         run: |
-          echo "Liberando espaço agressivamente..."
+          echo "=== LIBERANDO ESPAÇO AGRESSIVAMENTE NO RUNNER ==="
+          # Removendo pacotes pesados pré-instalados no Ubuntu Runner
+          sudo apt-get purge -y libreoffice* firefox snapd azure-cli google-cloud-sdk hhvm llvm-12 llvm-13 llvm-14 php* mysql* mssql* redis* postgresql* || true
+          sudo apt-get autoremove -y
+          
+          # Remoção direta de diretórios de ferramentas e SDKs gigantescos
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
@@ -30,14 +35,16 @@ jobs:
           sudo rm -rf /usr/local/share/powershell
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
           
-          # Limpeza segura do apt e listas sem quebrar a estrutura de cache
+          # Limpeza de caches e temporários do sistema
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /tmp/* /var/tmp/*
+          sudo rm -rf ~/.cache/*
           
-          # Limpeza do Docker, se houver resíduos
+          # Limpeza do Docker
           docker image prune -af 2>/dev/null || true
           
-          echo "=== ESPAÇO APÓS LIMPEZA EXTREMA ==="
+          echo "=== ESPAÇO EM DISCO APÓS LIMPEZA EXTREMA ==="
           df -h /
 
       - name: Set Swap Space
@@ -77,30 +84,35 @@ jobs:
           echo "Tamanho ocupado pela pasta do código (~/rom):"
           du -sh ~/rom
 
-      - name: Prune Unused Source & Toolchains (Max Space Saver)
+      - name: Prune Unused Source, Toolchains & Repo Metadata (Max Space Saver)
         run: |
           cd ~/rom
           echo "=== ESPAÇO ANTES DA LIMPEZA DO REPO ==="
           df -h /
 
-          # 1. Remover toolchains Clang de host desnecessárias
+          # 1. Remover toolchains Clang/GCC de host e arquiteturas não usadas
           rm -rf prebuilts/clang/host/linux-x86/3.28.0/ || true
+          rm -rf prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-* || true
 
-          # 2. Remover SDK Tools e emuladores que não quebram o build
+          # 2. Remover SDK Tools, emuladores e componentes de teste genéricos
           rm -rf prebuilts/sdk/emulator/ || true
           rm -rf prebuilts/android-emulator/ || true
+          rm -rf external/qemu || true
+          rm -rf device/generic/goldfish* || true
+          rm -rf device/generic/car || true
 
-          # 3. Limpar o cache pesado do utilitário .repo (já que o sync terminou)
+          # 3. Limpar integralmente os metadados e caches pesados do utilitário .repo
           rm -rf .repo/repo/ || true
           rm -rf .repo/clone_depths/ || true
           rm -rf .repo/project-objects/ || true
+          rm -rf .repo/packs/ || true
 
-          # 4. Apagar pastas .git dos subdiretórios (libera múltiplos GB de histórico)
+          # 4. Apagar pastas .git dos subdiretórios (libera múltiplos GB de histórico de commits)
           find . -mindepth 2 -type d -name ".git" -exec rm -rf {} + || true
 
           echo "=== ESPAÇO FINAL DISPONÍVEL ANTES DE COMPILAR ==="
           df -h /
-          
+
       - name: Check partition layout
         run: |
           cd ~/rom
@@ -108,14 +120,14 @@ jobs:
           lunch lineage_hawaiip-userdebug > /dev/null
           for v in TARGET_COPY_OUT_SYSTEM TARGET_COPY_OUT_VENDOR TARGET_COPY_OUT_PRODUCT TARGET_COPY_OUT_SYSTEM_EXT TARGET_COPY_OUT_ODM PRODUCT_USE_DYNAMIC_PARTITIONS PRODUCT_VIRTUAL_AB_OTA; do
             echo "$v=$(get_build_var $v)"
-          done    
+          done
 
       - name: Save pruned vendor files
         if: always()
         continue-on-error: true
         run: |
           mkdir -p ~/ci-logs/vendor-pruned
-          cp ~/rom/vendor/motorola/hawaiip/Android.bp ~/rom/vendor/motorola/hawaiip/hawaiip-vendor.mk ~/ci-logs/vendor-pruned/
+          cp ~/rom/vendor/motorola/hawaiip/Android.bp ~/rom/vendor/motorola/hawaiip/hawaiip-vendor.mk ~/ci-logs/vendor-pruned/ || true
 
       - name: Start Compilation
         run: |
@@ -123,10 +135,16 @@ jobs:
           cd ~/rom
           source build/envsetup.sh
           lunch lineage_hawaiip-userdebug
+          
+          # Desativa explicitamente o ccache para economizar gigabytes cruciais no runner descartável
+          export USE_CCACHE=0
+          export CCACHE_DISABLE=1
+          export NINJA_ARGS="-k 0"
+          
           echo "=== ESPAÇO EM DISCO EXATO ANTES DE COMPILAR ==="
           df -h /
+          
           set -o pipefail
-          export NINJA_ARGS="-k 0"
           mka bacon -j$(nproc --all) 2>&1 | tee ~/ci-logs/build.log
 
       - name: Summarize failures
@@ -134,7 +152,7 @@ jobs:
         continue-on-error: true
         run: |
           [ -f ~/ci-logs/build.log ] || exit 0
-          grep -E "^FAILED:|fatal error:|error:|undefined reference" ~/ci-logs/build.log | head -n 80 | tee ~/ci-logs/failures.txt    
+          grep -E "^FAILED:|fatal error:|error:|undefined reference" ~/ci-logs/build.log | head -n 80 | tee ~/ci-logs/failures.txt
 
       - name: Post-build dependency check
         if: always()
@@ -164,7 +182,7 @@ jobs:
                   for f in files:
                       p = os.path.join(root, f)
                       if os.path.isfile(p) and is_elf(p):
-                        for n in needed(p):
+                          for n in needed(p):
                               if n not in provided:
                                   missing[n].add(os.path.relpath(p, OUT))
           print(f'{len(missing)} libs pedidas por blobs do vendor e nao encontradas na build')
