@@ -106,6 +106,7 @@ jobs:
           [ -n "$AR" ] && args="$args AR=$AR"
           [ -n "$NM" ] && args="$args NM=$NM"
           [ -n "$OBJCOPY" ] && args="$args OBJCOPY=$OBJCOPY"
+          args="$args HOSTCC=clang HOSTCXX=clang++"
           
           # triples, cross-compilers
           args="$args CLANG_TRIPLE=$(echo $params | jq -r ".CLANG_TRIPLE")"
