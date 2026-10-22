@@ -185,3 +185,12 @@ jobs:
         with:
           name: config-ksu-${{ env.withKernelSU }}
           path: final_config.txt    
+
+      - name: "📄 Save Module.symvers"
+        if: always()
+        run: cp ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/Module.symvers ./Module.symvers.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: symvers-ksu-${{ env.withKernelSU }}
+          path: Module.symvers.txt   
