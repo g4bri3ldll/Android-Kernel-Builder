@@ -177,3 +177,141 @@ jobs:
           path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/dtbo.img
           if-no-files-found: ignore
           retention-days: 7
+          
+      - name: "📦 Package flashable AnyKernel3 zip"
+        env:
+          BOOT_DIR: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot
+          KERNEL_STRING: ${{ env.kernelName }} (${{ env.kernelBranch }}) for ${{ env.kernelDevice }}   # texto mostrado no TWRP ao flashar
+          DEVICE_NAME: hawaiip            # codinome checado no flash (ro.product.device); NAO e o env.kernelDevice
+          DTB_FILE: ""                    # vazio = acha sozinho; se achar mais de um .dtb o step falha e lista; ai coloque o caminho aqui
+          AK3_REPO: https://github.com/osm0sis/AnyKernel3
+          AK3_REF: master                 # recomendado: trocar por um SHA de commit do AnyKernel3
+        run: |
+          set -euo pipefail
+
+          # ---------- 1) Image ----------
+          IMAGE="$BOOT_DIR/Image"
+          [ -f "$IMAGE" ] || { echo "::error::Image nao encontrada em $IMAGE (este zip usa o Image SEM compressao, nao o Image.gz)"; exit 1; }
+          [ "$(head -c 60 "$IMAGE" | tail -c 4 | od -An -tx1 | tr -d ' \n')" = "41524d64" ] \
+            || { echo "::error::$IMAGE nao e um arm64 Image valido"; exit 1; }
+
+          # ---------- 2) dtb do boot ----------
+          if [ -z "$DTB_FILE" ]; then
+            mapfile -t CAND < <(find "$BOOT_DIR/dts" -name '*.dtb' 2>/dev/null | sort)
+            if [ "${#CAND[@]}" -eq 1 ]; then
+              DTB_FILE="${CAND[0]}"
+            elif [ -f "$BOOT_DIR/dtb" ]; then
+              DTB_FILE="$BOOT_DIR/dtb"
+            else
+              echo "::error::nao consegui escolher o dtb sozinho (${#CAND[@]} candidatos em dts/). Defina DTB_FILE neste step com um destes:"
+              for f in "${CAND[@]}"; do echo "  $f ($(stat -c %s "$f") bytes)"; done
+              exit 1
+            fi
+          fi
+          echo "Image: $IMAGE ($(stat -c %s "$IMAGE") bytes)"
+          echo "dtb:   $DTB_FILE ($(stat -c %s "$DTB_FILE") bytes)"
+
+          # ---------- 3) AnyKernel3 ----------
+          OUTDIR="$PWD/dist"; mkdir -p "$OUTDIR"
+          W=$(mktemp -d)
+          if [ -n "${AK3_DIR:-}" ]; then cp -a "$AK3_DIR/." "$W/"; else git clone -q "$AK3_REPO" "$W" && git -C "$W" checkout -q "$AK3_REF"; fi
+          ( cd "$W" && rm -rf .git .github ramdisk patch modules README.md anykernel.sh )
+
+          cat > "$W/anykernel.sh" <<'AKEOF'
+          ### AnyKernel3 Kernel Swap Script
+          ## Kernel-only flash for hawaiip (MT6765, A/B) - keeps current ramdisk
+          ## built by GitHub Actions (no manager APK bundled)
+
+          ### AnyKernel setup
+          # global properties
+          properties() { '
+          kernel.string=__KERNEL_STRING__
+          do.devicecheck=1
+          do.modules=0
+          do.systemless=0
+          do.cleanup=1
+          do.cleanuponabort=0
+          device.name1=__DEVICE_NAME__
+          supported.versions=
+          supported.patchlevels=
+          supported.vendorpatchlevels=
+          '; } # end properties
+
+
+          ### AnyKernel install
+          # boot shell variables
+          BLOCK=auto;
+          IS_SLOT_DEVICE=auto;
+          RAMDISK_COMPRESSION=auto;
+          PATCH_VBMETA_FLAG=auto;
+
+          # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
+          . tools/ak3-core.sh;
+
+
+          # --- dtb format match begin
+          # The zip carries the same dtb in two containers: "dtb" (DT table, magic d7b7ab1e) and
+          # "dtb.raw" (plain FDT, magic d00dfeed). Use the container the boot partition has today;
+          # if that is not recognized, keep the dtb that is already in the boot image.
+          match_dtb_format() {
+            local magic;
+            [ -f $SPLITIMG/dtb ] && [ -f $AKHOME/dtb ] && [ -f $AKHOME/dtb.raw ] || return 0;
+            magic=$(od -An -tx1 -N4 $SPLITIMG/dtb 2>/dev/null | tr -d ' \n');
+            case $magic in
+              d7b7ab1e) ui_print "dtb: o boot atual usa tabela DTBO, usando o dtb do zip nesse formato.";;
+              d00dfeed) cp -f $AKHOME/dtb.raw $AKHOME/dtb; ui_print "dtb: o boot atual usa FDT puro, usando o dtb.raw do zip.";;
+              *) rm -f $AKHOME/dtb; ui_print "dtb: formato do boot atual nao reconhecido ($magic), mantendo o dtb que ja esta no boot.";;
+            esac;
+          }
+          # --- dtb format match end
+
+
+          # boot install: swap kernel + dtb only, ramdisk is left untouched
+          split_boot;
+          match_dtb_format;
+          flash_boot;
+          ## end boot install
+          AKEOF
+          KERNEL_STRING="$KERNEL_STRING" DEVICE_NAME="$DEVICE_NAME" python3 - "$W/anykernel.sh" <<'PY'
+          import os, sys
+          p = sys.argv[1]; t = open(p).read()
+          t = t.replace("__KERNEL_STRING__", os.environ["KERNEL_STRING"]).replace("__DEVICE_NAME__", os.environ["DEVICE_NAME"])
+          open(p, "w").write(t)
+          PY
+          sh -n "$W/anykernel.sh"
+
+          # ---------- 4) kernel + dtb nos dois formatos (tabela DT e FDT puro); o anykernel.sh usa o que o boot atual tem ----------
+          cp "$IMAGE" "$W/Image"
+          python3 - "$DTB_FILE" "$W/dtb" "$W/dtb.raw" <<'PY'
+          import struct, sys
+          src, out_tab, out_raw = sys.argv[1:4]
+          d = open(src, "rb").read()
+          if d[:4] == bytes.fromhex("d7b7ab1e"):
+              magic, total, hsz, esz, cnt, eoff, pg, ver = struct.unpack(">8I", d[:32])
+              if cnt != 1: sys.exit("ERRO: tabela DT com %d entradas; esperado 1" % cnt)
+              dt_size, dt_off = struct.unpack(">2I", d[eoff:eoff + 8]); raw = d[dt_off:dt_off + dt_size]
+          elif d[:4] == bytes.fromhex("d00dfeed"):
+              raw = d
+          else:
+              sys.exit("ERRO: dtb com magic desconhecida: " + d[:4].hex())
+          if struct.unpack(">I", raw[4:8])[0] != len(raw): sys.exit("ERRO: tamanho do FDT nao confere com o cabecalho")
+          open(out_tab, "wb").write(struct.pack(">8I", 0xd7b7ab1e, len(raw) + 64, 32, 32, 1, 32, 2048, 0) + struct.pack(">8I", len(raw), 64, 0, 0, 0, 0, 0, 0) + raw)
+          open(out_raw, "wb").write(raw)
+          print("dtb: FDT %d bytes -> dtb (tabela) %d bytes + dtb.raw" % (len(raw), len(raw) + 64))
+          PY
+
+          # ---------- 5) zip ----------
+          SAFE=$(printf '%s' "Kernel-${kernelName}-${kernelBranch}-$(date +%Y%m%d)-${GITHUB_SHA::7}" | tr -c 'A-Za-z0-9._-' '-')
+          ( cd "$W" && zip -q -r9 -X "$OUTDIR/$SAFE.zip" META-INF tools LICENSE anykernel.sh Image dtb dtb.raw )
+          unzip -tq "$OUTDIR/$SAFE.zip" >/dev/null
+          echo "OK: dist/$SAFE.zip ($(du -h "$OUTDIR/$SAFE.zip" | cut -f1))"
+          sha256sum "$OUTDIR/$SAFE.zip"
+          rm -rf "$W"
+
+      - name: "📦 Upload flashable zip"
+        uses: actions/upload-artifact@v4
+        with:
+          name: AK3-zip(${{ env.kernelDevice }}-${{ env.kernelName }}-${{ env.kernelBranch }})
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 7
