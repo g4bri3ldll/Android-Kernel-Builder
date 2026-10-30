@@ -178,24 +178,27 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
           
-      - name: "📦 Package flashable AnyKernel3 zip"
+      - name: "📦 Package flashable AnyKernel3 zip (stock + gsi)"
         env:
           BOOT_DIR: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot
-          KERNEL_STRING: ${{ env.kernelName }} (${{ env.kernelBranch }}) for ${{ env.kernelDevice }}   # texto mostrado no TWRP ao flashar
-          DEVICE_NAME: hawaiip            # codinome checado no flash (ro.product.device); NAO e o env.kernelDevice
-          DTB_FILE: ""                    # vazio = acha sozinho; se achar mais de um .dtb o step falha e lista; ai coloque o caminho aqui
+          KERNEL_STRING: ${{ env.kernelName }} (${{ env.kernelBranch }}) for ${{ env.kernelDevice }}
+          DEVICE_NAME: hawaiip
+          DTB_FILE: ""
           AK3_REPO: https://github.com/osm0sis/AnyKernel3
-          AK3_REF: master                 # recomendado: trocar por um SHA de commit do AnyKernel3
+          AK3_REF: master
         run: |
           set -euo pipefail
 
+          # ---------- 0) instalar mtk-bpf-patcher ----------
+          pip3 install --upgrade git+https://github.com/R0rt1z2/mtk-bpf-patcher
+
           # ---------- 1) Image ----------
           IMAGE="$BOOT_DIR/Image"
-          [ -f "$IMAGE" ] || { echo "::error::Image nao encontrada em $IMAGE (este zip usa o Image SEM compressao, nao o Image.gz)"; exit 1; }
+          [ -f "$IMAGE" ] || { echo "::error::Image nao encontrada em $IMAGE"; exit 1; }
           [ "$(head -c 60 "$IMAGE" | tail -c 4 | od -An -tx1 | tr -d ' \n')" = "41524d64" ] \
             || { echo "::error::$IMAGE nao e um arm64 Image valido"; exit 1; }
 
-          # ---------- 2) dtb do boot ----------
+          # ---------- 2) dtb ----------
           if [ -z "$DTB_FILE" ]; then
             mapfile -t CAND < <(find "$BOOT_DIR/dts" -name '*.dtb' 2>/dev/null | sort)
             if [ "${#CAND[@]}" -eq 1 ]; then
@@ -203,7 +206,7 @@ jobs:
             elif [ -f "$BOOT_DIR/dtb" ]; then
               DTB_FILE="$BOOT_DIR/dtb"
             else
-              echo "::error::nao consegui escolher o dtb sozinho (${#CAND[@]} candidatos em dts/). Defina DTB_FILE neste step com um destes:"
+              echo "::error::nao consegui escolher o dtb sozinho (${#CAND[@]} candidatos). Defina DTB_FILE:"
               for f in "${CAND[@]}"; do echo "  $f ($(stat -c %s "$f") bytes)"; done
               exit 1
             fi
@@ -211,17 +214,21 @@ jobs:
           echo "Image: $IMAGE ($(stat -c %s "$IMAGE") bytes)"
           echo "dtb:   $DTB_FILE ($(stat -c %s "$DTB_FILE") bytes)"
 
-          # ---------- 3) AnyKernel3 ----------
+          # ---------- 3) preparar AnyKernel3 base ----------
           OUTDIR="$PWD/dist"; mkdir -p "$OUTDIR"
-          W=$(mktemp -d)
-          if [ -n "${AK3_DIR:-}" ]; then cp -a "$AK3_DIR/." "$W/"; else git clone -q "$AK3_REPO" "$W" && git -C "$W" checkout -q "$AK3_REF"; fi
-          ( cd "$W" && rm -rf .git .github ramdisk patch modules README.md anykernel.sh )
+          W_BASE=$(mktemp -d)
+          if [ -n "${AK3_DIR:-}" ]; then
+            cp -a "$AK3_DIR/." "$W_BASE/"
+          else
+            git clone -q "$AK3_REPO" "$W_BASE" && git -C "$W_BASE" checkout -q "$AK3_REF"
+          fi
+          ( cd "$W_BASE" && rm -rf .git .github ramdisk patch modules README.md anykernel.sh )
 
-          cat > "$W/anykernel.sh" <<'AKEOF'
+          # anykernel.sh (mesmo do seu original)
+          cat > "$W_BASE/anykernel.sh" <<'AKEOF'
           ### AnyKernel3 Kernel Swap Script
           ## Kernel-only flash for hawaiip (MT6765, A/B) - keeps current ramdisk
           ## built by GitHub Actions (no manager APK bundled)
-
           ### AnyKernel setup
           # global properties
           properties() { '
@@ -236,23 +243,15 @@ jobs:
           supported.patchlevels=
           supported.vendorpatchlevels=
           '; } # end properties
-
-
           ### AnyKernel install
           # boot shell variables
           BLOCK=auto;
           IS_SLOT_DEVICE=auto;
           RAMDISK_COMPRESSION=auto;
           PATCH_VBMETA_FLAG=auto;
-
           # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
           . tools/ak3-core.sh;
-
-
           # --- dtb format match begin
-          # The zip carries the same dtb in two containers: "dtb" (DT table, magic d7b7ab1e) and
-          # "dtb.raw" (plain FDT, magic d00dfeed). Use the container the boot partition has today;
-          # if that is not recognized, keep the dtb that is already in the boot image.
           match_dtb_format() {
             local magic;
             [ -f $SPLITIMG/dtb ] && [ -f $AKHOME/dtb ] && [ -f $AKHOME/dtb.raw ] || return 0;
@@ -264,25 +263,32 @@ jobs:
             esac;
           }
           # --- dtb format match end
-
-
           # boot install: swap kernel + dtb only, ramdisk is left untouched
           split_boot;
           match_dtb_format;
           flash_boot;
           ## end boot install
           AKEOF
-          KERNEL_STRING="$KERNEL_STRING" DEVICE_NAME="$DEVICE_NAME" python3 - "$W/anykernel.sh" <<'PY'
+
+          # ---------- 4) função que monta um zip ----------
+          make_zip() {
+            local VARIANT="$1"          # stock | gsi
+            local SRC_IMAGE="$2"        # caminho do Image a usar
+            local W=$(mktemp -d)
+            cp -a "$W_BASE/." "$W/"
+
+            # substituir placeholders
+            KERNEL_STRING="$KERNEL_STRING" DEVICE_NAME="$DEVICE_NAME" python3 - "$W/anykernel.sh" <<'PY'
           import os, sys
           p = sys.argv[1]; t = open(p).read()
           t = t.replace("__KERNEL_STRING__", os.environ["KERNEL_STRING"]).replace("__DEVICE_NAME__", os.environ["DEVICE_NAME"])
           open(p, "w").write(t)
           PY
-          sh -n "$W/anykernel.sh"
+            sh -n "$W/anykernel.sh"
 
-          # ---------- 4) kernel + dtb nos dois formatos (tabela DT e FDT puro); o anykernel.sh usa o que o boot atual tem ----------
-          cp "$IMAGE" "$W/Image"
-          python3 - "$DTB_FILE" "$W/dtb" "$W/dtb.raw" <<'PY'
+            # Image + dtb nos dois formatos
+            cp "$SRC_IMAGE" "$W/Image"
+            python3 - "$DTB_FILE" "$W/dtb" "$W/dtb.raw" <<'PY'
           import struct, sys
           src, out_tab, out_raw = sys.argv[1:4]
           d = open(src, "rb").read()
@@ -300,14 +306,28 @@ jobs:
           print("dtb: FDT %d bytes -> dtb (tabela) %d bytes + dtb.raw" % (len(raw), len(raw) + 64))
           PY
 
-          # ---------- 5) zip ----------
-          SAFE=$(printf '%s' "Kernel-${kernelName}-${kernelBranch}-$(date +%Y%m%d)-${GITHUB_SHA::7}" | tr -c 'A-Za-z0-9._-' '-')
-          ( cd "$W" && zip -q -r9 -X "$OUTDIR/$SAFE.zip" META-INF tools LICENSE anykernel.sh Image dtb dtb.raw )
-          unzip -tq "$OUTDIR/$SAFE.zip" >/dev/null
-          echo "OK: dist/$SAFE.zip ($(du -h "$OUTDIR/$SAFE.zip" | cut -f1))"
-          sha256sum "$OUTDIR/$SAFE.zip"
-          rm -rf "$W"
+            # nome final
+            SAFE="bakasu_susfs-hawaiip-${VARIANT}-$(date +%Y%m%d)-${GITHUB_SHA::7}"
+            ( cd "$W" && zip -q -r9 -X "$OUTDIR/$SAFE.zip" META-INF tools LICENSE anykernel.sh Image dtb dtb.raw )
+            unzip -tq "$OUTDIR/$SAFE.zip" >/dev/null
+            echo "OK: dist/$SAFE.zip ($(du -h "$OUTDIR/$SAFE.zip" | cut -f1))"
+            sha256sum "$OUTDIR/$SAFE.zip"
+            rm -rf "$W"
+          }
 
+          # ---------- 5) gerar os dois zips ----------
+          # stock (Image original)
+          make_zip "stock" "$IMAGE"
+
+          # gsi (Image com BPF patch)
+          IMAGE_GSI=$(mktemp)
+          mtk-bpf-patcher "$IMAGE" "$IMAGE_GSI"
+          echo "BPF patch aplicado com sucesso"
+          make_zip "gsi" "$IMAGE_GSI"
+          rm -f "$IMAGE_GSI"
+
+          rm -rf "$W_BASE"
+          
       - name: "📦 Upload flashable zip"
         uses: actions/upload-artifact@v4
         with:
