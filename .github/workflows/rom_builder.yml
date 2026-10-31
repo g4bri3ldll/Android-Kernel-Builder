@@ -105,7 +105,7 @@ jobs:
         run: |
           mkdir -p ~/rom ~/ci-logs
           cd ~/rom
-          repo init -u https://github.com/LineageOS/android.git -b lineage-19.0 --depth=1 --git-lfs
+          repo init -u https://github.com/LineageOS/android.git -b lineage-19.0 --depth=1 --git-lfs -g default,-darwin,-mips
 
           # Local manifest do phh (Treble)
           git clone --depth=1 https://github.com/phhusson/treble_manifest .repo/local_manifests -b android-12.0
@@ -126,15 +126,54 @@ jobs:
           echo "Tamanho ocupado pela pasta do código (~/rom):"
           du -sh ~/rom
 
-      - name: Apply phh Treble patches
+      - name: Fix duplicate modules (external/exfat x external/exfatprogs)
+        run: |
+          cd ~/rom
+          echo "=== exfat no local manifest do phh ==="
+          grep -hi exfat .repo/local_manifests/*.xml || echo "(nenhuma referência)"
+          echo "=== diretórios exfat presentes ==="
+          ls -d external/exfat* 2>/dev/null
+          # Lineage 19.0 já traz external/exfatprogs (mkfs.exfat, fsck.exfat, libexfat, exfatlabel).
+          # O external/exfat define os mesmos módulos e quebra o Soong com "already defined".
+          rm -rf external/exfat
+          echo "=== depois da remoção ==="
+          ls -d external/exfat* 2>/dev/null
+
+      - name: Apply phh Treble patches (Android 12.0 - release v402)
         run: |
           set +e
-          cd ~/rom
-          git clone --depth=1 https://github.com/phhusson/treble_patches ~/treble_patches -b android-12.0
+          mkdir -p ~/treble_patches ~/ci-logs
+          cd ~/treble_patches
 
-          PATCH_ROOT=~/treble_patches/patches
+          # A branch android-12.0 do treble_patches não existe; os patches saem nas releases.
+          # v402 = última release AOSP 12.0 (v411+ já é 12.1). Fallback: v401, v400.g.
+          GOT=""
+          for tag in v402 v401 v400.g; do
+            echo "Tentando patches-for-developers.zip da release $tag ..."
+            if curl -fL --retry 3 -o patches.zip "https://github.com/phhusson/treble_experimentations/releases/download/$tag/patches-for-developers.zip"; then
+              GOT="$tag"
+              break
+            fi
+          done
+          if [ -z "$GOT" ]; then
+            echo "ERRO: não consegui baixar o patches-for-developers.zip de nenhuma release."
+            exit 1
+          fi
+          echo "Usando patches da release $GOT"
+          unzip -q patches.zip -d extracted
+
+          NPATCH=$(find extracted -name '*.patch' | wc -l)
+          echo "Patches encontrados no zip: $NPATCH"
+          if [ "$NPATCH" -eq 0 ]; then
+            echo "ERRO: zip sem arquivos .patch"
+            find extracted | head -n 30
+            exit 1
+          fi
+
+          cd ~/rom
           {
-            for project in $(ls "$PATCH_ROOT"); do
+            for projdir in $(find ~/treble_patches/extracted -name '*.patch' -printf '%h\n' | sort -u); do
+              project="$(basename "$projdir")"
               # mesma regra de mapeamento do apply-patches.sh do phh
               dir="$(tr _ / <<<"$project" | sed -e 's;platform/;;g')"
               [ "$dir" = "build" ] && dir="build/make"
@@ -149,7 +188,7 @@ jobs:
               pushd "$dir" > /dev/null
               git clean -fdxq
               git reset --hard -q
-              for p in "$PATCH_ROOT/$project"/*.patch; do
+              for p in "$projdir"/*.patch; do
                 if git apply --check "$p" 2>/dev/null; then
                   if git am "$p" > /dev/null 2>&1; then
                     echo "OK:   $dir <- $(basename "$p")"
@@ -165,7 +204,7 @@ jobs:
             done
           } 2>&1 | tee ~/ci-logs/patches.log
 
-          echo "=== RESUMO DOS PATCHES ==="
+          echo "=== RESUMO DOS PATCHES (release $GOT) ==="
           echo "OK:   $(grep -c '^OK:' ~/ci-logs/patches.log)"
           echo "FAIL: $(grep -c '^FAIL:' ~/ci-logs/patches.log)"
           echo "SKIP: $(grep -c '^SKIP' ~/ci-logs/patches.log)"
