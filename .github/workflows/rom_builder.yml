@@ -224,12 +224,11 @@ jobs:
           echo "=== ARMAZENAMENTO ANTES DA LIMPEZA DO REPO ==="
           df -h /
 
-          # Toolchain de cross-compile Windows (não usada em systemimage)
-          rm -rf prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-* || true
-          rm -rf prebuilts/android-emulator/ || true
-
-          # NÃO remover device/generic/goldfish*: os produtos do phh herdam aosp_arm64.mk,
-          # que puxa partes do emulador.
+          # NÃO remover diretórios de prebuilts/device da árvore: o Soong falha com
+          # "depends on undefined module". Exemplos que já quebraram ou podem quebrar:
+          #   - prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-* (mingw-libwinpthread-notice)
+          #   - device/generic/goldfish* (herdado pelo aosp_arm64.mk dos produtos do phh)
+          # Só removemos metadados do repo e as pastas .git, que o build não usa.
 
           # Metadados pesados do repo
           rm -rf .repo/repo/ || true
