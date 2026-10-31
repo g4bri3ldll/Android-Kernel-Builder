@@ -1,0 +1,274 @@
+name: Build LineageOS 19.0 GSI (Android 12) - phh Treble
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "Variante phh (b = A/B, a = A-only | v = vanilla | N = sem su, S = com su)"
+        required: true
+        type: choice
+        default: treble_arm64_bvN-userdebug
+        options:
+          - treble_arm64_bvN-userdebug
+          - treble_arm64_bvS-userdebug
+          - treble_arm64_avN-userdebug
+          - treble_arm64_avS-userdebug
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      VARIANT: ${{ inputs.variant }}
+    steps:
+      - name: Resources BEFORE cleanup
+        run: |
+          echo "=== ARMAZENAMENTO (todos os discos) ==="
+          df -h
+          echo "=== RAM / SWAP ==="
+          free -h
+          echo "=== CPU ==="
+          nproc
+          lscpu | grep -E "Model name|^CPU\(s\)"
+
+      - name: Extreme Free Disk Space & Purge Heavy Packages
+        run: |
+          echo "=== LIBERANDO ESPAÇO AGRESSIVAMENTE NO RUNNER ==="
+          df -h /
+
+          # 1) Diretórios gigantes removidos EM PARALELO (bem mais rápido)
+          for d in \
+            /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /usr/local/share/boost /usr/share/swift /opt/az /usr/local/aws \
+            /usr/local/aws-cli /usr/local/aws-sam-cli /opt/google /opt/microsoft \
+            /usr/lib/google-cloud-sdk /usr/share/miniconda /usr/local/lib/node_modules \
+            /usr/local/share/vcpkg /opt/pipx /usr/local/julia* /usr/local/share/powershell \
+            /usr/local/graalvm /usr/local/share/chromium /usr/local/share/chromedriver* \
+            /usr/local/share/gecko_driver /usr/local/share/edge_driver /usr/local/share/phantomjs \
+            /usr/local/lib/heroku /usr/local/n /usr/lib/heroku /usr/lib/firefox /usr/lib/mono \
+            /usr/lib/jvm /usr/lib/llvm-* /usr/share/gradle* /usr/share/sbt /usr/share/kotlin \
+            /usr/share/rust /usr/share/az_* /home/linuxbrew /opt/hostedtoolcache \
+            "$AGENT_TOOLSDIRECTORY" \
+            "$HOME/.rustup" "$HOME/.cargo" "$HOME/.dotnet" "$HOME/.gradle" "$HOME/.m2" \
+            "$HOME/.npm" "$HOME/.ghcup" "$HOME/.cache"; do
+            [ -n "$d" ] && sudo rm -rf "$d" &
+          done
+          wait
+          echo "=== APÓS REMOVER DIRETÓRIOS ==="
+          df -h /
+
+          # 2) Pacotes pesados
+          sudo apt-get purge -y \
+            '^aspnetcore.*' '^dotnet.*' '^llvm.*' '^mongodb.*' '^mysql.*' '^postgresql.*' \
+            '^php.*' '^temurin.*' '^openjdk.*' '^libreoffice.*' '^mono-.*' '^mssql.*' '^redis.*' \
+            '^ruby.*' firefox google-chrome-stable microsoft-edge-stable powershell azure-cli \
+            google-cloud-sdk snapd hhvm kubectl mercurial subversion nginx apache2 sphinxsearch || true
+          sudo apt-get autoremove -y || true
+
+          # 3) Caches, logs, temporários e Docker
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/cache/* || true
+          sudo journalctl --vacuum-size=1M 2>/dev/null || true
+          sudo rm -rf /var/log/*.gz /var/log/journal/* 2>/dev/null || true
+          sudo rm -rf /tmp/* /var/tmp/* 2>/dev/null || true
+          sudo docker system prune -af --volumes 2>/dev/null || true
+
+          echo "=== ARMAZENAMENTO APÓS LIMPEZA EXTREMA ==="
+          df -h /
+          echo "=== RAM / SWAP ==="
+          free -h
+
+      - name: Set Swap Space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git git-lfs gnupg gperf imagemagick jq lib32ncurses5-dev lib32z1-dev libelf-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush python3 rsync schedtool squashfs-tools unzip xmlstarlet xsltproc xz-utils yasm zip zlib1g-dev
+          git lfs install
+
+      - name: Setup Local Repo Tool
+        run: |
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod +x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Configure Git Identity
+        run: |
+          git config --global user.name "g4bri3ldll"
+          git config --global user.email "gabrielalves.dasilva.0983@gmail.com"
+
+      - name: Initialize Repo and Sync Source (LineageOS 19.0 = Android 12)
+        run: |
+          mkdir -p ~/rom ~/ci-logs
+          cd ~/rom
+          repo init -u https://github.com/LineageOS/android.git -b lineage-19.0 --depth=1 --git-lfs
+
+          # Local manifest do phh (Treble)
+          git clone --depth=1 https://github.com/phhusson/treble_manifest .repo/local_manifests -b android-12.0
+
+          # replace.xml só serve para AOSP puro; remover ao usar LineageOS
+          rm -f .repo/local_manifests/replace.xml
+          # Variantes são vanilla: não precisamos do OpenGApps (grande, usa LFS)
+          rm -f .repo/local_manifests/opengapps.xml
+
+          repo sync -c --force-sync --no-clone-bundle --no-tags --optimized-fetch --prune -j4 --fail-fast
+
+      - name: Check Disk Space & RAM After Sync
+        run: |
+          echo "=== ARMAZENAMENTO APÓS O SYNC ==="
+          df -h /
+          echo "=== RAM / SWAP ==="
+          free -h
+          echo "Tamanho ocupado pela pasta do código (~/rom):"
+          du -sh ~/rom
+
+      - name: Apply phh Treble patches
+        run: |
+          set +e
+          cd ~/rom
+          git clone --depth=1 https://github.com/phhusson/treble_patches ~/treble_patches -b android-12.0
+
+          PATCH_ROOT=~/treble_patches/patches
+          {
+            for project in $(ls "$PATCH_ROOT"); do
+              # mesma regra de mapeamento do apply-patches.sh do phh
+              dir="$(tr _ / <<<"$project" | sed -e 's;platform/;;g')"
+              [ "$dir" = "build" ] && dir="build/make"
+              [ "$dir" = "treble/app" ] && dir="treble_app"
+              [ "$dir" = "vendor/hardware/overlay" ] && dir="vendor/hardware_overlay"
+
+              if [ ! -d "$dir" ]; then
+                echo "SKIP (diretório não existe): $dir"
+                continue
+              fi
+
+              pushd "$dir" > /dev/null
+              git clean -fdxq
+              git reset --hard -q
+              for p in "$PATCH_ROOT/$project"/*.patch; do
+                if git apply --check "$p" 2>/dev/null; then
+                  if git am "$p" > /dev/null 2>&1; then
+                    echo "OK:   $dir <- $(basename "$p")"
+                  else
+                    git am --abort 2>/dev/null
+                    echo "FAIL: $dir <- $(basename "$p") (git am)"
+                  fi
+                else
+                  echo "FAIL: $dir <- $(basename "$p") (não aplica / já aplicado)"
+                fi
+              done
+              popd > /dev/null
+            done
+          } 2>&1 | tee ~/ci-logs/patches.log
+
+          echo "=== RESUMO DOS PATCHES ==="
+          echo "OK:   $(grep -c '^OK:' ~/ci-logs/patches.log)"
+          echo "FAIL: $(grep -c '^FAIL:' ~/ci-logs/patches.log)"
+          echo "SKIP: $(grep -c '^SKIP' ~/ci-logs/patches.log)"
+          exit 0
+
+      - name: Generate phh Treble makefiles for LineageOS
+        run: |
+          cd ~/rom/device/phh/treble
+          git clean -fdx
+          bash generate.sh lineage || bash generate.sh vendor/lineage/config/common_full_phone.mk
+          echo "=== Makefiles gerados ==="
+          ls *.mk | head -n 50
+
+      - name: Prune Unused Source & Repo Metadata (Max Space Saver)
+        run: |
+          cd ~/rom
+          echo "=== ARMAZENAMENTO ANTES DA LIMPEZA DO REPO ==="
+          df -h /
+
+          # Toolchain de cross-compile Windows (não usada em systemimage)
+          rm -rf prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-* || true
+          rm -rf prebuilts/android-emulator/ || true
+
+          # NÃO remover device/generic/goldfish*: os produtos do phh herdam aosp_arm64.mk,
+          # que puxa partes do emulador.
+
+          # Metadados pesados do repo
+          rm -rf .repo/repo/ || true
+          rm -rf .repo/clone_depths/ || true
+          rm -rf .repo/project-objects/ || true
+          rm -rf .repo/packs/ || true
+
+          # Pastas .git (só depois de aplicar os patches, pois git am precisa delas)
+          find . -mindepth 2 -type d -name ".git" -exec rm -rf {} + || true
+
+          echo "=== ARMAZENAMENTO FINAL ANTES DE COMPILAR ==="
+          df -h /
+          free -h
+
+      - name: Start Compilation (GSI system.img)
+        run: |
+          mkdir -p ~/ci-logs
+          cd ~/rom
+          source build/envsetup.sh
+          lunch "$VARIANT"
+
+          export USE_CCACHE=0
+          export CCACHE_DISABLE=1
+          export NINJA_ARGS="-k 0"
+          export WITHOUT_CHECK_API=true
+
+          echo "=== ARMAZENAMENTO / RAM EXATOS ANTES DE COMPILAR ==="
+          df -h /
+          free -h
+          nproc
+
+          set -o pipefail
+          make -j$(nproc --all) systemimage 2>&1 | tee ~/ci-logs/build.log
+
+      - name: Resources AFTER build
+        if: always()
+        continue-on-error: true
+        run: |
+          echo "=== ARMAZENAMENTO APÓS O BUILD ==="
+          df -h /
+          echo "Tamanho do out/:"
+          du -sh ~/rom/out 2>/dev/null || true
+          echo "=== RAM / SWAP ==="
+          free -h
+
+      - name: Summarize failures
+        if: always()
+        continue-on-error: true
+        run: |
+          [ -f ~/ci-logs/build.log ] || exit 0
+          grep -E "^FAILED:|fatal error:|error:|undefined reference" ~/ci-logs/build.log | head -n 80 | tee ~/ci-logs/failures.txt
+
+      - name: Compress system.img
+        if: success()
+        run: |
+          mkdir -p ~/gsi-out
+          IMG=$(find ~/rom/out/target/product -maxdepth 2 -name system.img | head -n 1)
+          [ -n "$IMG" ] || { echo "system.img não encontrado"; exit 1; }
+          echo "Imagem encontrada: $IMG"
+          ls -lh "$IMG"
+          NAME="lineage-19.0-android12-${VARIANT%%-*}"
+          xz -T0 -6 -c "$IMG" > ~/gsi-out/system-${NAME}.img.xz
+          ls -lh ~/gsi-out
+
+      - name: Upload GSI
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: LineageOS_19.0_GSI_Android12
+          path: ~/gsi-out/*.img.xz
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload CI logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-logs-gsi-a12
+          path: ~/ci-logs/
+          if-no-files-found: ignore
+          retention-days: 7
