@@ -218,6 +218,33 @@ jobs:
           echo "=== Makefiles gerados ==="
           ls *.mk | head -n 50
 
+      - name: Export Lineage Soong vars to phh BoardConfig (fix PATH_OVERRIDE_SOONG)
+        run: |
+          cd ~/rom
+          echo "=== BoardConfig*.mk do vendor/lineage ==="
+          ls vendor/lineage/config/BoardConfig*.mk
+
+          # O vendor/lineage define KERNEL_*, PATH_OVERRIDE_SOONG etc. em BoardConfigKernel.mk /
+          # BoardConfigSoong.mk. O BoardConfig do phh não inclui esses arquivos, então o Soong
+          # falha com "unknown variable '$(PATH_OVERRIDE_SOONG)'" em generated_kernel_includes.
+          FILES=$(find device/phh/treble -maxdepth 2 -name BoardConfig.mk)
+          if [ -z "$FILES" ]; then
+            echo "ERRO: nenhum BoardConfig.mk em device/phh/treble"
+            ls device/phh/treble
+            exit 1
+          fi
+
+          for f in $FILES; do
+            if ! grep -q "BoardConfigSoong.mk" "$f"; then
+              printf '\n%s\n%s\n%s\n' \
+                '# Lineage: exporta KERNEL_* e PATH_OVERRIDE_SOONG para o Soong' \
+                '-include vendor/lineage/config/BoardConfigKernel.mk' \
+                '-include vendor/lineage/config/BoardConfigSoong.mk' >> "$f"
+            fi
+            echo "=== $f (final do arquivo) ==="
+            tail -n 6 "$f"
+          done
+
       - name: Prune Unused Source & Repo Metadata (Max Space Saver)
         run: |
           cd ~/rom
