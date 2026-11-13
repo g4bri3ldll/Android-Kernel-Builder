@@ -77,7 +77,7 @@ jobs:
 
           echo "PATH Variable: $PATH"
 
-      - name: "😎 Set args"
+            - name: "😎 Set args"
         id: generate-args
         working-directory: ./${{ env.kernelDir }}
         env:
@@ -93,10 +93,13 @@ jobs:
           
           echo "ARCH=$ARCH" >> $GITHUB_ENV
           
-          # LOCALVERSION (4.19.191-g4bri3ldll)
+          # LOCALVERSION (4.19.191-g4bri3ldll-YYYYMMDD-bakasu-susfs)
+          BUILD_DATE=$(date +%Y%m%d)
+          CUSTOM_LOCALVERSION="-g4bri3ldll-${BUILD_DATE}-bakasu-susfs"
+          
           # BUILD_USER e HOST "@"
           args="-j$(nproc --all) O=$(pwd)/${{ env.OUT_DIR }} ARCH=$ARCH"
-          args="$args LOCALVERSION=-g4bri3ldll"
+          args="$args LOCALVERSION=$CUSTOM_LOCALVERSION"
           args="$args KBUILD_BUILD_USER=g4bri3ldll"
           args="$args KBUILD_BUILD_HOST=hawaiip-dev"
           # ------------------------------------
