@@ -93,9 +93,9 @@ jobs:
           
           echo "ARCH=$ARCH" >> $GITHUB_ENV
           
-          # LOCALVERSION (4.19.191-g4bri3ldll-YYYYMMDD-bakasu-susfs)
+          # LOCALVERSION (4.19.191-g4bri3ldll-YYYYMMDD-bakasu)
           BUILD_DATE=$(date +%Y%m%d)
-          CUSTOM_LOCALVERSION="-g4bri3ldll-${BUILD_DATE}-bakasu-susfs"
+          CUSTOM_LOCALVERSION="-g4bri3ldll-${BUILD_DATE}-bakasu"
           
           # BUILD_USER e HOST "@"
           args="-j$(nproc --all) O=$(pwd)/${{ env.OUT_DIR }} ARCH=$ARCH"
