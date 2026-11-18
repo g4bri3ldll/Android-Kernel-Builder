@@ -93,17 +93,17 @@ jobs:
 
           echo "ARCH=$ARCH" >> $GITHUB_ENV
 
-          # LOCALVERSION neutro, sem referência a bakasu/ksu
-          CUSTOM_LOCALVERSION="-perf"
+          # LOCALVERSION igual ao stock (hash de commit curto, sem "perf"/"bakasu")
+          CUSTOM_LOCALVERSION="-g6d4e825cf64a"
 
           args="-j$(nproc --all) O=$(pwd)/${{ env.OUT_DIR }} ARCH=$ARCH"
           args="$args LOCALVERSION=$CUSTOM_LOCALVERSION"
-          args="$args KBUILD_BUILD_USER=build"
-          args="$args KBUILD_BUILD_HOST=localhost"
+          args="$args KBUILD_BUILD_USER=nobody"
+          args="$args KBUILD_BUILD_HOST=android-build"
           # ------------------------------------
 
-          # Timestamp de build falso, já no formato que o kernel usa (saída real do `date`, sem T/Z)
-          echo "KBUILD_BUILD_TIMESTAMP=$(date -u -d '2025-03-05 02:00:00' +'%a %b %e %H:%M:%S UTC %Y')" >> $GITHUB_ENV
+          # Timestamp idêntico ao stock: Sat Mar 1 11:59:36 CST 2025 (fuso China, sem padding no dia)
+          echo "KBUILD_BUILD_TIMESTAMP=$(TZ=Asia/Shanghai date -d '2025-03-01 11:59:36' +'%a %b %-d %H:%M:%S %Z %Y')" >> $GITHUB_ENV
 
           [ -n "$CC" ] && args="$args CC=$CC"
           [ -n "$LD" ] && args="$args LD=$LD"
