@@ -70,7 +70,14 @@ jobs:
             name=$(echo $toolchains | jq -r ".[$i].name")
             repo=$(echo $toolchains | jq -r ".[$i].repo")
             branch=$(echo $toolchains | jq -r ".[$i].branch")
-            git clone --recursive --branch $branch $repo $name --depth=1
+
+            if [[ "$repo" == *.tar.gz ]]; then
+              mkdir -p "$name"
+              curl -LSs "$repo" | tar -xz -C "$name"
+            else
+              git clone --recursive --branch $branch $repo $name --depth=1
+            fi
+
             echo "$(pwd)/$name/" >> $GITHUB_PATH
             echo "$(pwd)/$name/bin" >> $GITHUB_PATH
           done
