@@ -1,0 +1,37 @@
+[
+  {
+    "kernelSource": {
+      "name": "hawaiip",
+      "repo": "https://github.com/g4bri3ldll/motorola_source_code_hawaiip",
+      "branch": "manual_hook_resukisu",
+      "device": "p410ae"
+    },
+    "withKernelSU": true,
+    "toolchains": [
+      {
+        "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",
+        "branch": "master",
+        "name": "gas"
+      },
+      {
+        "repo": "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-release/clang-r383902.tar.gz",
+        "branch": "",
+        "name": "clang"
+      }
+    ],
+    "params": {
+      "ARCH": "arm64",
+      "CC": "clang",
+      "LD": "ld.lld",
+      "AR": "llvm-ar",
+      "NM": "llvm-nm",
+      "OBJCOPY": "llvm-objcopy",
+      "OBJDUMP": "llvm-objdump",
+      "STRIP": "llvm-strip",
+      "CLANG_TRIPLE": "aarch64-linux-gnu-",
+      "CROSS_COMPILE": "aarch64-linux-gnu-",
+      "CROSS_COMPILE_ARM32": "arm-linux-gnueabi-",
+      "CROSS_COMPILE_COMPAT": "arm-linux-gnueabi-"
+    }
+  }
+]
