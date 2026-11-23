@@ -1,4 +1,4 @@
-name: "Build kernels"
+name: "Build kernel mtk 4.19.191 + susfs"
 
 env:
   CONFIGURATION: "repos.json"
