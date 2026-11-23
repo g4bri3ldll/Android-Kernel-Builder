@@ -1,0 +1,357 @@
+name: "Build kernels"
+
+env:
+  CONFIGURATION: "repos.json"
+  OUT_DIR: "out"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  Set-repos:
+    name: "🐂 Parse repos.json"
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.generate-matrix.outputs.repos }}
+    steps:
+      - name: "😄 Checkout"
+        uses: actions/checkout@v3
+
+      - name: "😆 Generate Matrix"
+        id: generate-matrix
+        run: |
+          echo "repos<<EOF" >> $GITHUB_OUTPUT
+          cat  ${{ env.CONFIGURATION }} >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  Build-Kernel:
+    name: "🐎 Build kernel"
+    runs-on: ubuntu-latest
+    needs:
+      - Set-repos
+    strategy:
+      max-parallel: 2
+      fail-fast: false
+      matrix:
+        repos: ${{ fromJSON(needs.Set-repos.outputs.repos) }}
+    env:
+      kernelDir: ${{ matrix.repos.kernelSource.name }}_${{ matrix.repos.kernelSource.device }}
+
+      kernelName: ${{ matrix.repos.kernelSource.name }}
+      kernelRepo: ${{ matrix.repos.kernelSource.repo }}
+      kernelBranch: ${{ matrix.repos.kernelSource.branch }}
+      kernelDevice: ${{ matrix.repos.kernelSource.device }}
+
+      DEFCONFIG_NAME: ${{ matrix.repos.kernelSource.device }}_defconfig
+
+      withKernelSU: ${{ matrix.repos.withKernelSU }}
+      ksuCommit: ${{ matrix.repos.ksuCommit }}
+    steps:
+      - name: "✨ Create working dir"
+        run: mkdir -p $kernelDir
+
+      - name: "⭐ Install prerequisites"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc curl git zip ftp gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev lftp zstd wget libfl-dev python3 libarchive-tools
+
+      - name: "🌟 Clone kernel source => (${{ env.kernelRepo }})"
+        working-directory: ./${{ env.kernelDir }}
+        run: |
+          git clone --recursive --branch $kernelBranch $kernelRepo $kernelName --depth=1
+
+      - name: "💫 Get toolchains"
+        working-directory: ./${{ env.kernelDir }}
+        env:
+          toolchains: "${{ toJSON(matrix.repos.toolchains) }}"
+        run: |
+          toolchains_num="$(echo $toolchains | jq 'length')"
+          echo $toolchains_num
+          for ((i=0;i<toolchains_num;i++)); do
+            name=$(echo $toolchains | jq -r ".[$i].name")
+            repo=$(echo $toolchains | jq -r ".[$i].repo")
+            branch=$(echo $toolchains | jq -r ".[$i].branch")
+
+            if [[ "$repo" == *.tar.gz ]]; then
+              mkdir -p "$name"
+              curl -LSs "$repo" | tar -xz -C "$name"
+            else
+              git clone --recursive --branch $branch $repo $name --depth=1
+            fi
+
+            echo "$(pwd)/$name/" >> $GITHUB_PATH
+            echo "$(pwd)/$name/bin" >> $GITHUB_PATH
+          done
+
+          echo "PATH Variable: $PATH"
+
+      - name: "😎 Set args"
+        id: generate-args
+        working-directory: ./${{ env.kernelDir }}
+        env:
+          params: "${{ toJSON(matrix.repos.params) }}"
+        run: |
+          ARCH=$(echo $params | jq -r ".ARCH")
+          # LLVM/Clang
+          CC=$(echo $params | jq -r ".CC")
+          LD=$(echo $params | jq -r ".LD")
+          AR=$(echo $params | jq -r ".AR")
+          NM=$(echo $params | jq -r ".NM")
+          OBJCOPY=$(echo $params | jq -r ".OBJCOPY")
+
+          echo "ARCH=$ARCH" >> $GITHUB_ENV
+
+          # LOCALVERSION igual ao stock (hash de commit curto, sem "perf"/"bakasu")
+          CUSTOM_LOCALVERSION="-g6d4e825cf64a"
+
+          args="-j$(nproc --all) O=$(pwd)/${{ env.OUT_DIR }} ARCH=$ARCH"
+          args="$args LOCALVERSION=$CUSTOM_LOCALVERSION"
+          args="$args KBUILD_BUILD_USER=nobody"
+          args="$args KBUILD_BUILD_HOST=android-build"
+          # ------------------------------------
+
+          # Timestamp idêntico ao stock: Sat Mar 1 11:59:36 CST 2025 (fuso China, sem padding no dia)
+          echo "KBUILD_BUILD_TIMESTAMP=$(TZ=Asia/Shanghai date -d '2025-03-01 11:59:36' +'%a %b %-d %H:%M:%S %Z %Y')" >> $GITHUB_ENV
+
+          [ -n "$CC" ] && args="$args CC=$CC"
+          [ -n "$LD" ] && args="$args LD=$LD"
+          [ -n "$AR" ] && args="$args AR=$AR"
+          [ -n "$NM" ] && args="$args NM=$NM"
+          [ -n "$OBJCOPY" ] && args="$args OBJCOPY=$OBJCOPY"
+          args="$args HOSTCC=clang HOSTCXX=clang++"
+
+          # triples, cross-compilers
+          args="$args CLANG_TRIPLE=$(echo $params | jq -r ".CLANG_TRIPLE")"
+          args="$args CROSS_COMPILE=$(echo $params | jq -r ".CROSS_COMPILE")"
+          args="$args CROSS_COMPILE_ARM32=$(echo $params | jq -r ".CROSS_COMPILE_COMPAT")"
+
+          echo "args=$args" >> $GITHUB_OUTPUT
+
+      - name: "😋 Update KernelSU"
+        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
+        if: ${{ env.withKernelSU == 'true' }}
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+
+          # fixa o KernelSU no commit compativel com o SUSFS v2.3.0 (versao 35262)
+          git -C KernelSU fetch --unshallow || true
+          git -C KernelSU checkout -q "$ksuCommit"
+          echo "KernelSU fixado em: $(git -C KernelSU rev-parse --short HEAD) | versao: $((30000 + $(git -C KernelSU rev-list --count HEAD) + 700))"
+
+          echo "CONFIG_TMPFS_XATTR=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo "CONFIG_MTK_PERF_TOUCH_BOOST=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo "CONFIG_HZ_300=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo "CONFIG_HZ=300" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+
+          # apaga o -dirty e o hash de commit que o setlocalversion gruda no uname
+          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          touch .scmversion
+
+      - name: "👍 Make defconfig"
+        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
+        env:
+          args: ${{ steps.generate-args.outputs.args }}
+        run: |
+          echo "PATH Variable: $PATH"
+          make ${{ env.args }} ${{ env.DEFCONFIG_NAME }}
+
+      - name: "🎶 Build kernel"
+        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
+        env:
+          args: ${{ steps.generate-args.outputs.args }}
+        run: |
+          echo "PATH Variable: $PATH"
+          make ${args}
+
+      - name: "💛 Upload Image"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image(${{ env.kernelDevice }}-${{ env.kernelName }}-${{ env.kernelBranch }})
+          path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/Image
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: "💙 Upload Image.gz"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image.gz(${{ env.kernelDevice }}-${{ env.kernelName }}-${{ env.kernelBranch }})
+          path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/Image.gz
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: "💜 Upload dtb"
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtb-${{ env.kernelDevice }}-${{ env.kernelName }}-${{ env.kernelBranch }}
+          path: |
+            ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/dts/mediatek/*.dtb
+            ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/dtb*
+            ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/dtbo.img
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: "❤️ Upload dtbo.img"
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtbo.img(${{ env.kernelDevice }}-${{ env.kernelName }}-${{ env.kernelBranch }})
+          path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/dtbo.img
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: "📦 Package flashable AnyKernel3 zip (stock + gsi)"
+        env:
+          BOOT_DIR: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot
+          KERNEL_STRING: ${{ env.kernelName }} (${{ env.kernelBranch }}) for ${{ env.kernelDevice }}
+          DEVICE_NAME: hawaiip
+          DTB_FILE: ""
+          AK3_REPO: https://github.com/osm0sis/AnyKernel3
+          AK3_REF: master
+        run: |
+          set -euo pipefail
+
+          # ---------- 0) instalar mtk-bpf-patcher ----------
+          pip3 install --upgrade git+https://github.com/R0rt1z2/mtk-bpf-patcher
+
+          # ---------- 1) Image ----------
+          IMAGE="$BOOT_DIR/Image"
+          [ -f "$IMAGE" ] || { echo "::error::Image nao encontrada em $IMAGE"; exit 1; }
+          [ "$(head -c 60 "$IMAGE" | tail -c 4 | od -An -tx1 | tr -d ' \n')" = "41524d64" ] \
+            || { echo "::error::$IMAGE nao e um arm64 Image valido"; exit 1; }
+
+          # ---------- 2) dtb ----------
+          if [ -z "$DTB_FILE" ]; then
+            mapfile -t CAND < <(find "$BOOT_DIR/dts" -name '*.dtb' 2>/dev/null | sort)
+            if [ "${#CAND[@]}" -eq 1 ]; then
+              DTB_FILE="${CAND[0]}"
+            elif [ -f "$BOOT_DIR/dtb" ]; then
+              DTB_FILE="$BOOT_DIR/dtb"
+            else
+              echo "::error::nao consegui escolher o dtb sozinho (${#CAND[@]} candidatos). Defina DTB_FILE:"
+              for f in "${CAND[@]}"; do echo "  $f ($(stat -c %s "$f") bytes)"; done
+              exit 1
+            fi
+          fi
+          echo "Image: $IMAGE ($(stat -c %s "$IMAGE") bytes)"
+          echo "dtb:   $DTB_FILE ($(stat -c %s "$DTB_FILE") bytes)"
+
+          # ---------- 3) preparar AnyKernel3 base ----------
+          OUTDIR="$PWD/dist"; mkdir -p "$OUTDIR"
+          W_BASE=$(mktemp -d)
+          if [ -n "${AK3_DIR:-}" ]; then
+            cp -a "$AK3_DIR/." "$W_BASE/"
+          else
+            git clone -q "$AK3_REPO" "$W_BASE" && git -C "$W_BASE" checkout -q "$AK3_REF"
+          fi
+          ( cd "$W_BASE" && rm -rf .git .github ramdisk patch modules README.md anykernel.sh )
+
+          # anykernel.sh (mesmo do seu original)
+          cat > "$W_BASE/anykernel.sh" <<'AKEOF'
+          ### AnyKernel3 Kernel Swap Script
+          ## Kernel-only flash for hawaiip (MT6765, A/B) - keeps current ramdisk
+          ## built by GitHub Actions (no manager APK bundled)
+          ### AnyKernel setup
+          # global properties
+          properties() { '
+          kernel.string=__KERNEL_STRING__
+          do.devicecheck=1
+          do.modules=0
+          do.systemless=0
+          do.cleanup=1
+          do.cleanuponabort=0
+          device.name1=__DEVICE_NAME__
+          supported.versions=
+          supported.patchlevels=
+          supported.vendorpatchlevels=
+          '; } # end properties
+          ### AnyKernel install
+          # boot shell variables
+          BLOCK=auto;
+          IS_SLOT_DEVICE=auto;
+          RAMDISK_COMPRESSION=auto;
+          PATCH_VBMETA_FLAG=auto;
+          # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
+          . tools/ak3-core.sh;
+          # --- dtb format match begin
+          match_dtb_format() {
+            local magic;
+            [ -f $SPLITIMG/dtb ] && [ -f $AKHOME/dtb ] && [ -f $AKHOME/dtb.raw ] || return 0;
+            magic=$(od -An -tx1 -N4 $SPLITIMG/dtb 2>/dev/null | tr -d ' \n');
+            case $magic in
+              d7b7ab1e) ui_print "dtb: o boot atual usa tabela DTBO, usando o dtb do zip nesse formato.";;
+              d00dfeed) cp -f $AKHOME/dtb.raw $AKHOME/dtb; ui_print "dtb: o boot atual usa FDT puro, usando o dtb.raw do zip.";;
+              *) rm -f $AKHOME/dtb; ui_print "dtb: formato do boot atual nao reconhecido ($magic), mantendo o dtb que ja esta no boot.";;
+            esac;
+          }
+          # --- dtb format match end
+          # boot install: swap kernel + dtb only, ramdisk is left untouched
+          split_boot;
+          match_dtb_format;
+          flash_boot;
+          ## end boot install
+          AKEOF
+
+          # ---------- 4) função que monta um zip ----------
+          make_zip() {
+            local VARIANT="$1"          # stock | gsi
+            local SRC_IMAGE="$2"        # caminho do Image a usar
+            local W=$(mktemp -d)
+            cp -a "$W_BASE/." "$W/"
+
+            # substituir placeholders
+            KERNEL_STRING="$KERNEL_STRING" DEVICE_NAME="$DEVICE_NAME" python3 - "$W/anykernel.sh" <<'PY'
+          import os, sys
+          p = sys.argv[1]; t = open(p).read()
+          t = t.replace("__KERNEL_STRING__", os.environ["KERNEL_STRING"]).replace("__DEVICE_NAME__", os.environ["DEVICE_NAME"])
+          open(p, "w").write(t)
+          PY
+            sh -n "$W/anykernel.sh"
+
+            # Image + dtb nos dois formatos
+            cp "$SRC_IMAGE" "$W/Image"
+            python3 - "$DTB_FILE" "$W/dtb" "$W/dtb.raw" <<'PY'
+          import struct, sys
+          src, out_tab, out_raw = sys.argv[1:4]
+          d = open(src, "rb").read()
+          if d[:4] == bytes.fromhex("d7b7ab1e"):
+              magic, total, hsz, esz, cnt, eoff, pg, ver = struct.unpack(">8I", d[:32])
+              if cnt != 1: sys.exit("ERRO: tabela DT com %d entradas; esperado 1" % cnt)
+              dt_size, dt_off = struct.unpack(">2I", d[eoff:eoff + 8]); raw = d[dt_off:dt_off + dt_size]
+          elif d[:4] == bytes.fromhex("d00dfeed"):
+              raw = d
+          else:
+              sys.exit("ERRO: dtb com magic desconhecida: " + d[:4].hex())
+          if struct.unpack(">I", raw[4:8])[0] != len(raw): sys.exit("ERRO: tamanho do FDT nao confere com o cabecalho")
+          open(out_tab, "wb").write(struct.pack(">8I", 0xd7b7ab1e, len(raw) + 64, 32, 32, 1, 32, 2048, 0) + struct.pack(">8I", len(raw), 64, 0, 0, 0, 0, 0, 0) + raw)
+          open(out_raw, "wb").write(raw)
+          print("dtb: FDT %d bytes -> dtb (tabela) %d bytes + dtb.raw" % (len(raw), len(raw) + 64))
+          PY
+
+            # nome final, sem referência a bakasu/susfs
+            SAFE="kernel-hawaiip-${VARIANT}-$(date +%Y%m%d)"
+            ( cd "$W" && zip -q -r9 -X "$OUTDIR/$SAFE.zip" META-INF tools LICENSE anykernel.sh Image dtb dtb.raw )
+            unzip -tq "$OUTDIR/$SAFE.zip" >/dev/null
+            echo "OK: dist/$SAFE.zip ($(du -h "$OUTDIR/$SAFE.zip" | cut -f1))"
+            sha256sum "$OUTDIR/$SAFE.zip"
+            rm -rf "$W"
+          }
+
+          # ---------- 5) gerar os dois zips ----------
+          # stock (Image original)
+          make_zip "stock" "$IMAGE"
+
+          # gsi (Image com BPF patch)
+          IMAGE_GSI=$(mktemp)
+          mtk-bpf-patcher "$IMAGE" "$IMAGE_GSI"
+          echo "BPF patch aplicado com sucesso"
+          make_zip "gsi" "$IMAGE_GSI"
+          rm -f "$IMAGE_GSI"
+
+          rm -rf "$W_BASE"
+
+      - name: "📦 Upload flashable zip"
+        uses: actions/upload-artifact@v4
+        with:
+          name: AK3-zip(${{ env.kernelDevice }}-${{ env.kernelName }}-${{ env.kernelBranch }})
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 7
